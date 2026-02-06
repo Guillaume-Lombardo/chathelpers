@@ -1,38 +1,63 @@
 [project]
-name = "flatten-repo"
-version = "0.1.0"
-description = "Export a repository into LLM-friendly Markdown or JSONL."
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "pydantic",
-    "pyyaml",
-    "structlog",
-]
+    name = "flatten-repo"
+    version = "0.1.0"
+    description = "Export a repository into LLM-friendly Markdown or JSONL."
+    readme = "README.md"
+    requires-python = ">=3.13"
+    dependencies = ["pydantic", "pyyaml", "structlog"]
 
-[project.scripts]
-flatten-repo = "flatten_repo.cli:main"
+
+[dependency-groups]
+    dev = [
+        "detect-secrets",
+        "pre-commit",
+        "pytest",
+        "pytest-cov",
+        "pytest-mock",
+        "pytest-sugar",
+        "ruff",
+        "ty",
+    ]
+
+    [project.scripts]
+        flatten-repo = "flatten_repo.cli:main"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.uv]
-dev-dependencies = [
-    "detect-secrets",
-    "pre-commit",
-    "pytest",
-    "pytest-mock",
-    "ruff",
-    "ty",
-]
+    requires = ["hatchling"]
+    build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-ra -m unit"
-pythonpath = ["src"]
-markers = [
-    "unit: fast unit tests",
-    "integration: integration tests",
-    "end2end: end-to-end tests",
-]
+    minversion = "6.0"
+    testpaths = ["tests"]
+    addopts = "-ra -q --strict-markers --cov=flatten_repo --cov-report=term-missing:skip-covered --cov-report=html"
+    pythonpath = ["src"]
+    markers = [
+        "end2end: end-to-end tests",
+        "integration: integration tests",
+        "unit: fast unit tests",
+    ]
+
+[tool.coverage.run]
+    branch = true
+    source = ["src/flatten_repo"]
+    omit = ["*/tests/*"]
+
+[tool.coverage.report]
+    exclude_lines = [
+        "def __repr__",
+        "if 0:",
+        "if __name__ .__main__.:",
+        "if self.debug:",
+        "if settings.DEBUG",
+        "pragma: no cover",
+        "raise AssertionError",
+        "raise NotImplementedError",
+    ]
+    show_missing = true
+    skip_covered = true
+    precision = 2
+    fail_under = 0
+
+[tool.coverage.html]
+    directory = "htmlcov"
+    title = "Flatten Repo Test Coverage"

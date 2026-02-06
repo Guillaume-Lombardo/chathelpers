@@ -2,7 +2,7 @@
 # Documentation: https://docs.astral.sh/ruff/
 
 line-length = 88
-target-version = "py310"
+target-version = "py313"
 
 exclude = [
   "*.egg-info",
@@ -32,7 +32,7 @@ exclude = [
 
 [lint]
 select = [
-  "F",
+  "F",       
   "E",
   "W",
   "C90",
