@@ -1,0 +1,38 @@
+[project]
+name = "flatten-repo"
+version = "0.1.0"
+description = "Export a repository into LLM-friendly Markdown or JSONL."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic",
+    "pyyaml",
+    "structlog",
+]
+
+[project.scripts]
+flatten-repo = "flatten_repo.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "detect-secrets",
+    "pre-commit",
+    "pytest",
+    "pytest-mock",
+    "ruff",
+    "ty",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -m unit"
+pythonpath = ["src"]
+markers = [
+    "unit: fast unit tests",
+    "integration: integration tests",
+    "end2end: end-to-end tests",
+]

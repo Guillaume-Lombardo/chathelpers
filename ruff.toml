@@ -1,0 +1,90 @@
+# Ruff configuration for flatten-repo
+# Documentation: https://docs.astral.sh/ruff/
+
+line-length = 88
+target-version = "py310"
+
+exclude = [
+  "*.egg-info",
+  ".bzr",
+  ".direnv",
+  ".eggs",
+  ".git",
+  ".git-rewrite",
+  ".hg",
+  ".mypy_cache",
+  ".nox",
+  ".pants.d",
+  ".pytype",
+  ".ruff_cache",
+  ".svn",
+  ".tox",
+  ".venv",
+  "__pycache__",
+  "__pypackages__",
+  "_build",
+  "buck-out",
+  "build",
+  "dist",
+  "node_modules",
+  "venv",
+]
+
+[lint]
+select = [
+  "F",
+  "E",
+  "W",
+  "C90",
+  "I",
+  "D",
+  "UP",
+  "B",
+  "SIM",
+  "C4",
+  "PIE",
+  "RET",
+  "SLF",
+  "ARG",
+  "PTH",
+  "Q",
+  "ANN",
+  "ASYNC",
+  "S",
+  "FBT",
+  "ICN",
+  "G",
+  "INP",
+  "T20",
+  "PT",
+  "RSE",
+  "TID",
+  "TRY",
+  "FLY",
+  "PERF",
+  "FURB",
+  "RUF",
+]
+
+ignore = [
+  "D100",
+  "TRY003",
+]
+
+[lint.per-file-ignores]
+"test_*.py" = ["ANN001", "ANN201", "D103", "S101", "SLF001"]
+"**/tests/**/*.py" = ["ANN001", "ANN201", "D103", "S101"]
+"scripts/*.py" = ["T201", "T203"]
+"launch_*.py" = ["T201", "T203"]
+"__init__.py" = ["D104"]
+
+[lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"
+
+[lint.pydocstyle]
+convention = "google"
+
+[lint.flake8-annotations]
+suppress-dummy-args = true
+suppress-none-returning = true

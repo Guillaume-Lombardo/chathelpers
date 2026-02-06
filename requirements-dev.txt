@@ -1,0 +1,7 @@
+-r requirements.txt
+detect-secrets
+pre-commit
+pytest
+pytest-mock
+ruff
+ty
