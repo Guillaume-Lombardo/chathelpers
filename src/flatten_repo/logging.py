@@ -2,15 +2,26 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _LOGGING_CONFIGURED = False
 
 
 def setup_logging(filename: str | Path | None = None) -> structlog.BoundLogger:
-    global _LOGGING_CONFIGURED
+    """Set up structured logging for the flatten_repo module.
+
+    Args:
+        filename: Optional path to a log file. If None, logs are written to stderr.
+
+    Returns:
+        A structlog logger instance configured for the flatten_repo module.
+    """
+    global _LOGGING_CONFIGURED  # noqa: PLW0603
     if not _LOGGING_CONFIGURED:
         handlers: list[logging.Handler] = []
         if filename:
@@ -39,3 +50,6 @@ def setup_logging(filename: str | Path | None = None) -> structlog.BoundLogger:
         _LOGGING_CONFIGURED = True
 
     return structlog.get_logger("flatten_repo")
+
+
+logger = setup_logging()

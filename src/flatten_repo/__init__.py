@@ -1,5 +1,3 @@
 """Flatten Repo package."""
 
-from flatten_repo.cli import main
-
-__all__ = ["main"]
+from flatten_repo.logging import logger

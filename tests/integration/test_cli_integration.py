@@ -1,13 +1,11 @@
 from pathlib import Path
 
-import pytest
 from pytest_mock import MockerFixture
 
 from flatten_repo import cli
 from flatten_repo.settings import Settings
 
 
-@pytest.mark.integration
 def test_main_uses_git_ls_files_when_available(
     tmp_path: Path,
     mocker: MockerFixture,
@@ -28,12 +26,14 @@ def test_main_uses_git_ls_files_when_available(
         no_git=False,
     )
 
-    cli.main([
-        "--repo",
-        str(settings.repo),
-        "--output",
-        str(settings.output),
-        "--all",
-    ])
+    cli.main(
+        [
+            "--repo",
+            str(settings.repo),
+            "--output",
+            str(settings.output),
+            "--all",
+        ],
+    )
 
     assert output.exists()

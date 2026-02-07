@@ -1,24 +1,47 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
       - id: check-added-large-files
       - id: check-merge-conflict
-      - id: check-toml
+      - id: check-ast
+      - id: check-builtin-literals
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-executables-have-shebangs
+      - id: check-illegal-windows-names
+      - id: check-json
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
       - id: check-yaml
-      - id: end-of-file-fixer
+      - id: check-toml
+      - id: fix-byte-order-marker
+      - id: name-tests-test
+        args: [--pytest-test-first]
+      - id: mixed-line-ending
+      - id: debug-statements
+      - id: detect-private-key
+      - id: destroyed-symlinks
+      - id: detect-aws-credentials
+        args: [--allow-missing-credentials]
+      - id: file-contents-sorter
+        args: [--unique]
+        files: requirements(-dev)?\.(txt|in)$
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master, --branch, staging-stable]
       - id: trailing-whitespace
+        exclude: '^.*\.patch$'
+        args:
+          - --markdown-linebreak-ext=md
+      - id: pretty-format-json
+        exclude: "^.*ipynb$"
+        args: [--autofix]
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+    rev: v0.15.0
     hooks:
       - id: ruff
         args: ["--fix"]
       - id: ruff-format
-  - repo: https://github.com/astral-sh/ty
-    rev: v0.0.14
-    hooks:
-      - id: ty
-        args: ["check", "src", "tests"]
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
@@ -29,6 +52,11 @@ repos:
     hooks:
       - id: pytest-unit
         name: pytest unit
-        entry: pytest -m unit
+        entry: uv run pytest -m unit
+        language: system
+        pass_filenames: false
+      - id: ty
+        name: ty (type checking)
+        entry: uv run ty check src/
         language: system
         pass_filenames: false
