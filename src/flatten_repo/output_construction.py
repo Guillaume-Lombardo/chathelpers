@@ -90,8 +90,10 @@ def build_markdown(
             pem_mode=settings.pem,
         )
         if settings.compact:
-            out.write(f"```{lang}\n{body}\n```\n\n")
+            # More compact: no extra blank line between code blocks
+            out.write(f"```{lang}\n{body}\n```\n")
         else:
+            # Preserve existing behavior with a blank line between blocks
             out.write(f"```{lang}\n{body}\n```\n\n")
 
     return out.getvalue().rstrip() + "\n"
