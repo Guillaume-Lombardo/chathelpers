@@ -51,6 +51,7 @@ exclude = [
     "EM",    # Flake8-errmsg – error message style
     "ERA",   # Eradicate – detects commented-out code (potentially dangerous)
     "EXE",   # Flake8-executable – executable file checks
+    "F",     # Pyflakes – logical errors and undefined names
     "FA",    # Flake8-future-annotations – future import for annotations
     "FAST",  # FastAPI – FastAPI-specific linting rules
     "FBT",   # Flake8-boolean-trap – potential pitfalls with booleans
