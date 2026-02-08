@@ -3,9 +3,7 @@ from __future__ import annotations
 import io
 from typing import TYPE_CHECKING
 
-from flatten_repo.config import (
-    FileRecord,
-)
+from flatten_repo.config import FileRecord
 from flatten_repo.file_manipulation import build_tree_lines, file_to_markdown_text, now_iso, order_recs
 
 if TYPE_CHECKING:
