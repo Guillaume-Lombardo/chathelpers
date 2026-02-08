@@ -340,10 +340,10 @@ def select_scope(
 
 
 def handle_no_git_error() -> None:
-    """Raise a RuntimeError for missing git.
+    """Raise a GitCommandError for missing git.
 
     This function is used to encapsulate the error handling logic when Git is
-    not available or when the --no-git flag is set. It raises a RuntimeError with
+    not available or when the --no-git flag is set. It raises a GitCommandError with
     a specific message that can be caught in the main function to trigger the fallback
     to filesystem walking.
 
