@@ -10,6 +10,7 @@ import os
 import stat
 import subprocess  # noqa: S404
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -32,9 +33,6 @@ if TYPE_CHECKING:
     from flatten_repo.settings import Settings
 
     FileProcessorFn = Callable[[Path], str]
-
-
-# ------------------------------ Utilities -----------------------------------
 
 
 def relpath(path: Path, root: Path) -> str:
@@ -552,6 +550,7 @@ def read_text_lines(path: Path, max_lines: int | None = None) -> list[str]:
     return lines
 
 
+@register_file_processor(".env")
 def redact_env(path: Path) -> str:
     """Redact environment variable values from a text file.
 
@@ -579,6 +578,7 @@ def redact_env(path: Path) -> str:
     return "\n".join(keys)
 
 
+@register_file_processor([".pre-commit-config.yaml", ".pre-commit-config.yml"])
 def summarize_precommit(path: Path) -> str:
     """Summarize the hooks defined in a pre-commit configuration file.
 
@@ -615,7 +615,7 @@ def summarize_precommit(path: Path) -> str:
     return "\n".join(hooks)
 
 
-def license_head(path: Path, head_lines: int) -> str:
+def license_head(path: Path, lines: int = 1) -> str:
     """Extract the head lines of a license file.
 
     This function reads a license file and returns the first `head_lines` lines as a string.
@@ -623,16 +623,32 @@ def license_head(path: Path, head_lines: int) -> str:
 
     Args:
         path (Path): the file path to the license file
-        head_lines (int): the number of lines to include from the head of the file
+        lines (int): the number of lines to include from the head of the file
 
     Returns:
         str: the first `head_lines` lines of the license file, or an error message if the file cannot be read
     """
-    lines = read_text_lines(path)
-    head = lines[: max(0, head_lines)]
+    license_lines = read_text_lines(path)
+    head = license_lines[: max(0, lines)]
     return "\n".join(head)
 
 
+@register_file_processor(["license", "license.md", "license.txt"])
+def license_head_curry(path: Path) -> str:
+    """Curried version of `license_head` with a default of 1 line.
+
+    This is registered as a file processor for common license file names to provide a concise summary of the license type.
+
+    Args:
+        path (Path): the file path to the license file
+
+    Returns:
+        str: the first line of the license file, or an error message if the file cannot be read
+    """
+    return license_head(path, lines=1)
+
+
+@register_file_processor(".pem")
 def pem_stub(path: Path) -> str:
     """Generate a stub string for a PEM file.
 
@@ -727,7 +743,7 @@ def file_to_markdown_text(
     elif name_low in {".pre-commit-config.yaml", ".pre-commit-config.yml"}:
         result = (summarize_precommit(p), True)
     elif name_low in {"license", "license.md", "license.txt"}:
-        result = (license_head(p, head_lines=12), True)
+        result = (license_head(p, lines=1), True)
     elif is_full_pem:
         result = (p.read_text(encoding="utf-8", errors="ignore"), True)
     elif is_pem:
@@ -785,171 +801,3 @@ def order_recs(
         return (key_bucket, test_bucket, r.lower())
 
     return sorted(recs, key=key)
-
-
-@register_file_processor(".env")
-def process_env_file(path: Path) -> str:
-    """Produce a redacted view of a `.env` file: only variable names are listed.
-
-    This helps an LLM understand available configuration knobs without leaking
-    secret values. Comments and blank lines are ignored.
-
-    Args:
-        path (Path): the file path to the `.env` file
-
-    Returns:
-        str: a string listing the variable names in the `.env` file, or an error
-    """
-    try:
-        lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-        keys = [ln.split("=", 1)[0].strip() for ln in lines if "=" in ln and not ln.strip().startswith("#")]
-        return f"# .env redacted: {len(keys)} variables\n" + "\n".join(f"- {k}" for k in keys)
-    except Exception as e:
-        logger.warning("Failed to parse .env %s: %s", path, e)
-        return f"# .env redacted (error reading: {e})"
-
-
-@register_file_processor([".pre-commit-config.yaml", ".pre-commit-config.yml"])
-def process_precommit(path: Path) -> str:
-    """Process .pre-commit-config.(yml|yaml) files.
-
-    Parse `.pre-commit-config.(yml|yaml)` and summarize listed hooks
-    as `id (repo@rev)` lines.
-
-    Returns:
-        str: a summary of the pre-commit hooks, or an error message if the file cannot be parsed
-    """
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8", errors="ignore")) or {}
-        hooks: list[str] = []
-        for repo in data.get("repos", []):
-            if not isinstance(repo, dict):
-                continue
-            r = repo.get("repo", "unknown")
-            rev = repo.get("rev", "unknown")
-            hooks.extend(
-                f"{hk.get('id', 'unknown')} ({r}@{rev})"
-                for hk in repo.get("hooks", [])
-                if isinstance(hk, dict)
-            )
-        return "Pre-commit hooks:\n" + "\n".join(f" - {h}" for h in hooks)
-    except Exception as e:
-        logger.warning("Failed to parse pre-commit %s: %s", path, e)
-        return f"Pre-commit: error parsing: {e}"
-
-
-@register_file_processor(["license", "license.md", "license.txt"])
-def process_license_head(path: Path, lines: int = 8) -> str:
-    """Return the first `lines` lines of a LICENSE file (or an error message)."""
-    try:
-        head = path.read_text(encoding="utf-8", errors="ignore").splitlines()[:lines]
-        return "\n".join(head) + ("\n[...]" if head else "")
-    except Exception as e:
-        return f"LICENSE head unavailable: {e}"
-
-
-@register_file_processor(".pem")
-def process_pem_head(path: Path, lines: int = 8) -> str:
-    """Return the first `lines` lines of a PEM file (or an error message)."""
-    try:
-        head = path.read_text(encoding="utf-8", errors="ignore").splitlines()[:lines]
-        return "\n".join(head) + ("\n[...]" if head else "")
-    except Exception as e:
-        return f"{path.name} head unavailable: {e}"
-
-
-# ------------------------------ Corpus building -----------------------------
-
-
-def build_markdown(
-    repo: Path,
-    recs: Sequence[FileRecord],
-    *,
-    settings: Settings,
-) -> str:
-    """Build a markdown string representing the repository contents.
-
-    The markdown includes a header with repository information, a visual tree of the file structure,
-    and sections for each file with content formatted according to heuristics (e.g. redacted .env files,
-    summarized pre-commit configs, truncated large files).
-
-    Args:
-        repo (Path): the root path of the repository
-        recs (Sequence[FileRecord]): the file records to include in the markdown
-        settings (Settings): configuration settings for markdown generation, including:
-            - text_head_lines: number of head lines to include for large text files
-            - text_tail_lines: number of tail lines to include for large text files
-            - md_max_lines: maximum lines for markdown files before truncation
-            - pem: mode for handling PEM files ('stub' or 'full')
-            - tests_first: whether to prioritize test files in the output
-            - no_key_first: whether to not prioritize key files in the output
-            - compact: whether to use a more compact format for file sections
-
-    Returns:
-        str: the generated markdown string representing the repository contents
-    """
-    out = io.StringIO()
-    rp = str(repo)
-    out.write("# Project Export for LLM\n")
-    out.write(f"root={rp}\n")
-    out.write(f"generated_at={now_iso()}\n")
-    out.write(f"files={len(recs)}\n\n")
-
-    rels = [r.rel for r in recs]
-    tree_lines = build_tree_lines(repo.name, rels)
-    out.write("```text\n")
-    out.write("\n".join(tree_lines))
-    out.write("\n```\n\n")
-
-    ordered = order_recs(recs, tests_first=settings.tests_first, key_first=not settings.no_key_first)
-
-    for rec in ordered:
-        header = f"{rec.rel} size={rec.size}"
-        if rec.sha256:
-            header += f" sha256={rec.sha256}"
-        out.write(f"## {header}\n")
-        lang = rec.language or "text"
-        body, _is_text = file_to_markdown_text(
-            rec,
-            text_head_lines=settings.text_head_lines,
-            text_tail_lines=settings.text_tail_lines,
-            md_max_lines=settings.md_max_lines,
-            pem_mode=settings.pem,
-        )
-        if settings.compact:
-            out.write(f"```{lang}\n{body}\n```\n\n")
-        else:
-            out.write(f"```{lang}\n{body}\n```\n\n")
-
-    return out.getvalue().rstrip() + "\n"
-
-
-def chunk_content(text: str, chunk_chars: int) -> Iterator[tuple[int, int, str]]:
-    """Chunk a text string into pieces of at most `chunk_chars` characters, splitting on line boundaries.
-
-    Args:
-        text (str): the text to chunk
-        chunk_chars (int): the maximum number of characters in each chunk
-
-    Yields:
-        Iterator[tuple[int, int, str]]: an iterator of tuples containing the start line number,
-            end line number, and chunk text for each chunk
-    """
-    if not text:
-        yield (0, 0, "")
-        return
-    lines = text.splitlines()
-    buf: list[str] = []
-    cur = 0
-    start_line = 1
-    for i, ln in enumerate(lines, start=1):
-        ln2 = ln + "\n"
-        if cur + len(ln2) > chunk_chars and buf:
-            yield (start_line, i - 1, "".join(buf))
-            buf = []
-            cur = 0
-            start_line = i
-        buf.append(ln2)
-        cur += len(ln2)
-    if buf:
-        yield (start_line, start_line + len(buf) - 1, "".join(buf))

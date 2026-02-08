@@ -75,9 +75,7 @@ from flatten_repo.config import (
 from flatten_repo.exceptions import GitCommandError
 from flatten_repo.file_manipulation import (
     apply_filters,
-    build_markdown,
     build_tree_lines,
-    chunk_content,
     file_to_markdown_text,
     get_init_content_if_not_empty,
     git_ls_files,
@@ -94,6 +92,7 @@ from flatten_repo.file_manipulation import (
     walk_files,
 )
 from flatten_repo.logging import setup_logging
+from flatten_repo.output_construction import build_markdown, chunk_content
 from flatten_repo.settings import Settings
 
 if TYPE_CHECKING:
