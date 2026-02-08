@@ -28,7 +28,7 @@ pip install -r requirements-dev.txt
 ## CLI Usage
 
 ```bash
-python -m flatten_repo.cli --help
+fratten-repo --help
 ```
 
 ### Common examples
@@ -36,19 +36,19 @@ python -m flatten_repo.cli --help
 Export source-focused markdown:
 
 ```bash
-python -m flatten_repo.cli --repo . --output repo_export.md
+fratten-repo --repo . --output repo_export.md
 ```
 
 Export full repository to JSONL:
 
 ```bash
-python -m flatten_repo.cli --repo . --all --format jsonl --output corpus.jsonl
+fratten-repo --repo . --all --format jsonl --output corpus.jsonl
 ```
 
 Include tests and add custom filters:
 
 ```bash
-python -m flatten_repo.cli \
+fratten-repo \
   --repo . \
   --output out.md \
   --include-tests \

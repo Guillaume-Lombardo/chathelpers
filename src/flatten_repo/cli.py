@@ -33,17 +33,17 @@ Python ≥ 3.13. Minimal dependency: `pyyaml` (for pre-commit parsing).
 
 Usage
 -----
-Run `python -m flatten_repo.cli --help` for full options. Common examples:
+Run `fratten-repo --help` for full options. Common examples:
     - Markdown (src + key files):
-        uv run python -m flatten_repo.cli --output repo_for_llm.md
+        fratten-repo --output repo_for_llm.md
 
     - Full project as JSONL (32k char chunks):
-        uv run python -m flatten_repo.cli --all --format jsonl --chunk-chars 32000 --output corpus.jsonl
+        fratten-repo --all --format jsonl --chunk-chars 32000 --output corpus.jsonl
 
     - Include tests and extra globs, exclude images:
-        uv run python -m flatten_repo.cli --tests --include "**/*.cfg" --exclude "**/*.png" --output out.md
+        fratten-repo --tests --include "**/*.cfg" --exclude "**/*.png" --output out.md
     - Log to a file:
-        uv run python -m flatten_repo.cli --output out.md --log-file export.log
+        fratten-repo --output out.md --log-file export.log
 """
 
 from __future__ import annotations
