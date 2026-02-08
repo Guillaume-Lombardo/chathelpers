@@ -293,9 +293,9 @@ def register_file_processor(
 
         if isinstance(key, list):
             for k in key:
-                FILE_PROCESSOR[k] = func
-            return func
-        FILE_PROCESSOR[key] = func
+                FILE_PROCESSOR[k] = wrapper
+        else:
+            FILE_PROCESSOR[key] = wrapper
         return wrapper
 
     return decorator
