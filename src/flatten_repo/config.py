@@ -210,7 +210,7 @@ def is_textlike_type(file_type: FileType) -> bool:
     Returns:
         bool: True if the file type is considered text-like, False otherwise.
     """
-    return file_type in {FileType.IMAGE, FileType.BINARY}
+    return file_type not in {FileType.IMAGE, FileType.BINARY}
 
 
 class FileRecord(BaseModel):
