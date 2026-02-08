@@ -25,12 +25,14 @@ def test_parse_args_parses_scope_and_limits() -> None:
             str(max_bytes),
             "--drop",
             "tests,docs",
+            "--strip-docstrings",
         ],
     )
 
     assert settings.src_only is True
     assert settings.max_bytes == max_bytes
     assert settings.drop == "tests,docs"
+    assert settings.strip_docstrings is True
 
 
 @pytest.mark.unit
@@ -105,3 +107,33 @@ def test_main_no_git_writes_markdown(tmp_path: Path, mocker: MockerFixture) -> N
     content = output.read_text(encoding="utf-8")
     assert "Project Export for LLM" in content
     assert "src/app.py" in content
+
+
+@pytest.mark.unit
+def test_main_strip_docstrings_in_markdown(tmp_path: Path, mocker: MockerFixture) -> None:
+    file_path = tmp_path / "src" / "app.py"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text(
+        '"""module doc"""\n\ndef run():\n    """function doc"""\n    return "ok"\n',
+        encoding="utf-8",
+    )
+    output = tmp_path / "out.md"
+
+    mocker.patch.object(cli, "walk_files", return_value=[file_path])
+
+    exit_code = cli.main(
+        [
+            "--repo",
+            str(tmp_path),
+            "--output",
+            str(output),
+            "--all",
+            "--no-git",
+            "--strip-docstrings",
+        ],
+    )
+
+    assert exit_code == 0
+    content = output.read_text(encoding="utf-8")
+    assert "module doc" not in content
+    assert "function doc" not in content

@@ -68,4 +68,8 @@ class Settings(BaseModel):
         default=False,
         description="Include binary stubs in jsonl.",
     )
+    strip_docstrings: bool = Field(
+        default=False,
+        description="Remove Python docstrings from exported content.",
+    )
     no_sha: bool = Field(default=False, description="Do not compute sha256 digests.")

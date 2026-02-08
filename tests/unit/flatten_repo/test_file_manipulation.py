@@ -4,6 +4,7 @@ from flatten_repo.file_manipulation import (
     get_init_content_if_not_empty,
     make_recs,
     normalize_globs,
+    strip_python_docstrings,
 )
 
 
@@ -35,3 +36,18 @@ def test_make_recs_applies_max_file_size(tmp_path: Path) -> None:
 
     assert rec.max_file_size == max_file_size
     assert rec.is_too_big
+
+
+def test_strip_python_docstrings_removes_module_and_function_docstrings() -> None:
+    source = '''"""module doc"""
+
+def foo():
+    """function doc"""
+    return "ok"
+'''
+
+    stripped = strip_python_docstrings(source)
+
+    assert "module doc" not in stripped
+    assert "function doc" not in stripped
+    assert "def foo" in stripped

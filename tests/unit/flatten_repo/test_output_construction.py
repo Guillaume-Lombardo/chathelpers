@@ -48,9 +48,10 @@ def test_build_markdown_renders_headers_and_fences(tmp_path: Path) -> None:
     output = build_markdown(tmp_path, [rec], settings=settings)
 
     assert "# Project Export for LLM" in output
+    assert "## Structure" in output
     assert "files=1" in output
-    assert "## src/app.py size=" in output
-    assert "sha256=deadbeef" in output
+    assert "## src/app.py" in output
+    assert "sha256=deadbeef" not in output
     assert "```python" in output
 
 
@@ -87,5 +88,5 @@ def test_build_markdown_compact_mode_removes_extra_spacing(tmp_path: Path) -> No
         settings=Settings(output=Path("out.md"), compact=False),
     )
 
-    assert "print('compact')\n```\n## src/util.py size=" in compact_output
-    assert "print('compact')\n```\n\n## src/util.py size=" in standard_output
+    assert "print('compact')\n```\n## src/util.py" in compact_output
+    assert "print('compact')\n```\n\n## src/util.py" in standard_output

@@ -111,6 +111,7 @@ def build_jsonl(
             text_tail_lines=settings.text_tail_lines,
             md_max_lines=settings.md_max_lines,
             pem_mode=settings.pem,
+            strip_docstrings=settings.strip_docstrings,
         )
         if not is_text and not settings.include_binary_meta:
             continue
@@ -263,6 +264,11 @@ def parse_args(argv: Sequence[str] | None = None) -> Settings:
         "--include-binary-meta",
         action="store_true",
         help="Include binary stubs in jsonl.",
+    )
+    p.add_argument(
+        "--strip-docstrings",
+        action="store_true",
+        help="Remove Python docstrings from exported content.",
     )
     p.add_argument(
         "--no-sha",

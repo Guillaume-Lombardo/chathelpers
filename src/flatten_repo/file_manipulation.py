@@ -533,12 +533,48 @@ def take_head_tail(lines: list[str], head: int, tail: int) -> str:
     return "\n".join(out)
 
 
-def file_to_markdown_text(
+def strip_python_docstrings(source: str) -> str:
+    """Remove module/class/function docstrings from Python source code.
+
+    If parsing or unparsing fails, the original source is returned unchanged.
+
+    Returns:
+        str: The source code without Python docstrings when possible.
+    """
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return source
+
+    def remove_docstring(body: list[ast.stmt]) -> None:
+        if not body:
+            return
+        first = body[0]
+        if not isinstance(first, ast.Expr):
+            return
+        value = first.value
+        is_doc = isinstance(value, ast.Constant) and isinstance(value.value, str)
+        if is_doc:
+            body.pop(0)
+
+    remove_docstring(tree.body)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            remove_docstring(node.body)
+
+    try:
+        return ast.unparse(tree)
+    except Exception:
+        return source
+
+
+def file_to_markdown_text(  # noqa: C901, PLR0913
     rec: FileRecord,
     *,
     text_head_lines: int,
     text_tail_lines: int,
     pem_mode: str,
+    strip_docstrings: bool = False,
     md_max_lines: int | None = None,
 ) -> tuple[str, bool]:
     """Convert a file to a markdown-friendly string, with special handling for certain types.
@@ -553,6 +589,7 @@ def file_to_markdown_text(
         text_tail_lines (int): Number of tail lines to include for large text files.
         md_max_lines (int): Maximum lines for markdown files before truncation.
         pem_mode (str): Mode for handling PEM files ('stub' or 'full').
+        strip_docstrings (bool): Whether to remove Python docstrings from rendered content.
 
     Returns:
         tuple[str, bool]: A tuple containing the markdown-friendly string representation of the file
@@ -587,7 +624,10 @@ def file_to_markdown_text(
         lines = read_text_lines(p, max_lines=md_max_lines)
         return ("\n".join(lines), True)
     else:
-        result = (p.read_text(encoding="utf-8", errors="ignore"), True)
+        content = p.read_text(encoding="utf-8", errors="ignore")
+        if strip_docstrings and suf_low == ".py":
+            content = strip_python_docstrings(content)
+        result = (content, True)
     return result
 
 

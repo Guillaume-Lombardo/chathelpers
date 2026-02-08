@@ -56,6 +56,12 @@ fratten-repo \
   --exclude-glob "**/*.png"
 ```
 
+Export Python files without docstrings:
+
+```bash
+fratten-repo --repo . --output out.md --strip-docstrings
+```
+
 ## Project Layout
 
 ```text
@@ -94,6 +100,12 @@ Pre-commit hooks are configured in `.pre-commit-config.yaml`.
 - `--tests-only`: restricts export to `tests/` (+ key files unless `--no-key-first`).
 - `--max-bytes`: files larger than this threshold are truncated to head/tail excerpts.
 - `--drop`: supports presets `api, ci, data, docker, docs, documentation, front, README, tests`.
+- `--strip-docstrings`: removes Python module/class/function docstrings from exported content.
+
+## Markdown Output Notes
+
+- The file tree is rendered under a `## Structure` section.
+- File section titles contain only the relative path (no size/SHA by default).
 
 ## Quality Gates
 
