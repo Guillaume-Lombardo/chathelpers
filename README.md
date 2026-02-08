@@ -28,7 +28,7 @@ pip install -r requirements-dev.txt
 ## CLI Usage
 
 ```bash
-fratten-repo --help
+flatten-repo --help
 ```
 
 ### Common examples
@@ -36,19 +36,19 @@ fratten-repo --help
 Export source-focused markdown:
 
 ```bash
-fratten-repo --repo . --output repo_export.md
+flatten-repo --repo . --output repo_export.md
 ```
 
 Export full repository to JSONL:
 
 ```bash
-fratten-repo --repo . --all --format jsonl --output corpus.jsonl
+flatten-repo --repo . --all --format jsonl --output corpus.jsonl
 ```
 
 Include tests and add custom filters:
 
 ```bash
-fratten-repo \
+flatten-repo \
   --repo . \
   --output out.md \
   --include-tests \
@@ -59,7 +59,7 @@ fratten-repo \
 Export Python files without docstrings:
 
 ```bash
-fratten-repo --repo . --output out.md --strip-docstrings
+flatten-repo --repo . --output out.md --strip-docstrings
 ```
 
 ## Project Layout
