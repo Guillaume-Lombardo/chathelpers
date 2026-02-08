@@ -63,7 +63,7 @@ packages = ["src/flatten_repo"]
     show_missing = true
     skip_covered = true
     precision = 2
-    fail_under = 0
+    fail_under = 30
 
 [tool.coverage.html]
     directory = "htmlcov"

@@ -87,38 +87,18 @@ Run checks from the local virtualenv:
 
 Pre-commit hooks are configured in `.pre-commit-config.yaml`.
 
-## Repository Analysis (2026-02-08)
+## Scope & Filtering Notes
 
-### Current strengths
+- Default scope: `src/` + key files (`pyproject.toml`, requirements, pre-commit config, etc.).
+- `--src-only`: strict `src/` scope (excludes key files).
+- `--tests-only`: restricts export to `tests/` (+ key files unless `--no-key-first`).
+- `--max-bytes`: files larger than this threshold are truncated to head/tail excerpts.
+- `--drop`: supports presets `api, ci, data, docker, docs, documentation, front, README, tests`.
 
-- Clear `src/` package layout aligned with module responsibilities.
-- Dedicated test split (`unit`, `integration`, `end2end`) with marker auto-tagging.
-- Quality tooling already in place (Ruff, ty, pre-commit, detect-secrets).
+## Quality Gates
 
-### Recommended improvements (priority order)
-
-1. Wire `--max-bytes` to effective truncation logic.
-   - `Settings.max_bytes` exists but `FileRecord.max_file_size` is never set.
-   - Result: `is_too_big` never triggers, so large-file truncation is effectively inactive.
-2. Remove or consolidate dead/duplicate helpers in `file_manipulation.py`.
-   - Pairs like `load_git_tracked_files`/`git_ls_files` and `walk_filesystem`/`walk_files` overlap.
-   - `file_language`, `is_probably_text`, and `sniff_text_utf8` are currently unused.
-3. Fix `__init__.py` empty-file classification.
-   - `get_init_content_if_not_empty` returns `"(Unparsable __init__.py)"` when body is empty.
-   - Empty parseable files should be treated as empty, not unparsable.
-4. Raise coverage expectations.
-   - Coverage report currently uses `fail_under = 0` (no gate).
-   - Latest local run shows low total coverage; adding targeted tests and a realistic threshold would reduce regressions.
-5. Align CLI/documentation semantics.
-   - `--src-only` is documented but currently redundant with default behavior.
-   - `DROP_PRESETS` includes more keys than documented by `--drop` help text.
-
-## Suggested Roadmap
-
-- Phase 1: fix `--max-bytes` behavior + add tests for truncation.
-- Phase 2: clean dead code paths and duplicate utilities.
-- Phase 3: improve marker-specific tests and set progressive coverage gates.
-- Phase 4: clarify CLI contract and docs (`--src-only`, `--drop` options).
+- Coverage gate is active in `/Users/g1lom/Documents/chathelpers/pyproject.toml` (`fail_under = 30`).
+- Unit tests remain the default pytest selection via marker configuration.
 
 ## License
 

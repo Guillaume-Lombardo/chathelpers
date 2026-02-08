@@ -172,7 +172,7 @@ def parse_args(argv: Sequence[str] | None = None) -> Settings:
     scope.add_argument(
         "--src-only",
         action="store_true",
-        help="Export src/ + key files (default).",
+        help="Export only src/ files (exclude key files).",
     )
     scope.add_argument(
         "--tests-only",
@@ -214,11 +214,12 @@ def parse_args(argv: Sequence[str] | None = None) -> Settings:
         default=[],
         help="Exclude path prefix (repeatable).",
     )
+    drop_options = ", ".join(sorted(DROP_PRESETS))
     p.add_argument(
         "--drop",
         type=str,
         default="",
-        help="Comma list: api,front,data,docs,tests.",
+        help=f"Comma list of drop presets: {drop_options}.",
     )
 
     p.add_argument(
@@ -310,7 +311,7 @@ def select_scope(
     include_tests = bool(settings.include_tests)
     base: list[Path] = []
     for f, r in rels:
-        if r.startswith("src/") or is_key(r):
+        if r.startswith("src/") or (not settings.src_only and is_key(r)):
             base.append(f)
         if include_tests and r.startswith("tests/"):
             base.append(f)
@@ -378,6 +379,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         selected,
         repo,
         no_sha=bool(settings.no_sha),
+        max_file_size=settings.max_bytes,
     )
 
     out_path = Path(settings.output)
