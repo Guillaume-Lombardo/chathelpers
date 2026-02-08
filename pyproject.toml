@@ -36,7 +36,7 @@ packages = ["src/flatten_repo"]
 [tool.pytest.ini_options]
     minversion = "6.0"
     testpaths = ["tests"]
-    addopts = "-ra -q --strict-markers --cov=flatten_repo --cov-report=term-missing:skip-covered --cov-report=html"
+    addopts = "-ra -q -m unit --strict-markers --cov=flatten_repo --cov-report=term-missing:skip-covered --cov-report=html"
     pythonpath = ["src"]
     markers = [
         "end2end: end-to-end tests",

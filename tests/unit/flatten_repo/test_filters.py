@@ -5,6 +5,7 @@ import pytest
 from flatten_repo import cli
 
 
+@pytest.mark.unit
 def test_apply_filters_respects_includes_excludes(tmp_path: Path) -> None:
     repo = tmp_path
     keep = repo / "src" / "main.py"

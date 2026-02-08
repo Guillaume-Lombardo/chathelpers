@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from dotenv import find_dotenv
 from pydantic import BaseModel, ConfigDict, Field
-
-ENV_FILE = find_dotenv(usecwd=True)
 
 
 class Settings(BaseModel):

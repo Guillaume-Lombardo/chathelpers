@@ -22,8 +22,6 @@ def test_end_to_end_markdown_export(tmp_path: Path) -> None:
         ],
     )
 
-    print(output.read_text(encoding="utf-8"))
-
     assert exit_code == 0
     assert output.exists()
-    assert "test_end_to_end_markdown" in output.read_text(encoding="utf-8")
+    assert "src/app.py" in output.read_text(encoding="utf-8")

@@ -57,6 +57,6 @@ repos:
         pass_filenames: false
       - id: ty
         name: ty (type checking)
-        entry: uv run ty check src/
+        entry: uv run ty check src/ tests/
         language: system
         pass_filenames: false
