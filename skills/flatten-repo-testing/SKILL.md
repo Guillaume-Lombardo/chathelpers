@@ -22,6 +22,9 @@ Use this skill for pytest organization, markers, defaults, and test quality.
 3. Auto-tag tests from directory with `tests/conftest.py` collection hooks.
 4. Default run must execute only unit tests via pytest addopts (`-m unit`).
 5. Keep tests deterministic and filesystem-local (no network).
+6. Prefer function-based tests over class/object-based tests.
+7. Keep imports at the top of test files, never inside test functions.
+8. For mocking, use `pytest_mock.MockerFixture` and the `mocker` fixture instead of `unittest.mock`.
 
 ## Validation
 

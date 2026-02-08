@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from enum import StrEnum, auto
 from functools import wraps
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
     FileProcessorFn = Callable[[Path], str]
+
+_ = Path()
 
 
 class FileType(StrEnum):
