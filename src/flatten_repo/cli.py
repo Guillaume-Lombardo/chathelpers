@@ -49,46 +49,24 @@ Run `python -m flatten_repo.cli --help` for full options. Common examples:
 from __future__ import annotations
 
 import argparse
-import ast
-import fnmatch
-import hashlib
 import io
 import json
-import os
-import stat
-import subprocess  # noqa: S404
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-import yaml
+from typing import TYPE_CHECKING
 
 from flatten_repo import logger
 from flatten_repo.config import (
-    DEFAULT_EXCLUDES,
     DROP_PRESETS,
-    EXT2LANG,
     KEY_FILES_PRIORITY,
     FileRecord,
-    register_file_processor,
 )
 from flatten_repo.exceptions import GitCommandError
 from flatten_repo.file_manipulation import (
     apply_filters,
-    build_tree_lines,
     file_to_markdown_text,
-    get_init_content_if_not_empty,
     git_ls_files,
-    license_head,
-    make_meta_string,
     make_recs,
-    now_iso,
-    pem_stub,
-    read_text_lines,
-    redact_env,
     relpath,
-    summarize_precommit,
-    take_head_tail,
     walk_files,
 )
 from flatten_repo.logging import setup_logging
@@ -96,7 +74,7 @@ from flatten_repo.output_construction import build_markdown, chunk_content
 from flatten_repo.settings import Settings
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Sequence
+    from collections.abc import Callable, Sequence
 
     FileProcessorFn = Callable[[Path], str]
 
@@ -399,7 +377,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     recs = make_recs(
         selected,
         repo,
-        max_bytes=int(settings.max_bytes),
         no_sha=bool(settings.no_sha),
     )
 

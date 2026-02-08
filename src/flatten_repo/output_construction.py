@@ -1,33 +1,15 @@
 from __future__ import annotations
 
-import argparse
-import ast
-import fnmatch
-import hashlib
 import io
-import json
-import os
-import stat
-import subprocess  # noqa: S404
-from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
-
-import yaml
+from typing import TYPE_CHECKING
 
 from flatten_repo.config import (
-    DEFAULT_EXCLUDES,
-    DROP_PRESETS,
-    EXT2LANG,
-    KEY_FILES_PRIORITY,
     FileRecord,
-    register_file_processor,
 )
-from flatten_repo.exceptions import NotAGitRepositoryError, NotAnInitFileError
 from flatten_repo.file_manipulation import build_tree_lines, file_to_markdown_text, now_iso, order_recs
-from flatten_repo.logging import logger
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Sequence
+    from collections.abc import Iterator, Sequence
     from pathlib import Path
 
     from flatten_repo.config import FileRecord

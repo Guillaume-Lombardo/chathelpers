@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-import argparse
 import ast
 import fnmatch
 import hashlib
-import io
-import json
 import os
 import stat
 import subprocess  # noqa: S404
 from datetime import UTC, datetime
-from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -18,7 +14,6 @@ import yaml
 
 from flatten_repo.config import (
     DEFAULT_EXCLUDES,
-    DROP_PRESETS,
     EXT2LANG,
     KEY_FILES_PRIORITY,
     FileRecord,
@@ -28,9 +23,7 @@ from flatten_repo.exceptions import NotAGitRepositoryError, NotAnInitFileError
 from flatten_repo.logging import logger
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator, Sequence
-
-    from flatten_repo.settings import Settings
+    from collections.abc import Callable, Sequence
 
     FileProcessorFn = Callable[[Path], str]
 
@@ -494,7 +487,6 @@ def make_meta_string(rec: FileRecord) -> str:
 def make_recs(
     files: Sequence[Path],
     repo: Path,
-    max_bytes: int,
     *,
     no_sha: bool = True,
 ) -> list[FileRecord]:
@@ -504,8 +496,6 @@ def make_recs(
         files (Sequence[Path]): the list of file paths to
             create records for (absolute paths)
         repo (Path): the root path to relativize file paths against for the `rel` field
-        max_bytes (int): the maximum file size in bytes to include contents for;
-            files larger than this will have an empty `sha256` and `too_big=True`
         no_sha (bool, optional): if True, do not compute SHA-256 digests and set `sha256` to an empty string for all files. Defaults to True.
 
     Returns:
@@ -516,9 +506,6 @@ def make_recs(
         try:
             st = f.stat()
             rel = relpath(f, repo)
-            lang = file_language(f)
-            too_big = st.st_size > max_bytes
-            is_text = sniff_text_utf8(f)
             digest = "" if (no_sha or st.st_size > 50_000_000) else (sha256_file(f))  # noqa: PLR2004
             recs.append(
                 FileRecord(
@@ -735,8 +722,6 @@ def file_to_markdown_text(
     suf_low = p.suffix.lower()
     is_full_pem = suf_low == ".pem" and pem_mode == "full" and rec.is_text and not rec.is_too_big
     is_pem = suf_low == ".pem"
-    is_init_without_code = rec.path.name == "__init__.py" and get_init_content_if_not_empty(rec.path)
-    is_not_text_nor_language = not rec.is_text and not rec.language
 
     if name_low == ".env":
         result = (redact_env(p), True)

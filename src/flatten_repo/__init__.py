@@ -1,3 +1,3 @@
 """Flatten Repo package."""
 
-from flatten_repo.logging import logger
+from flatten_repo.logging import logger as logger
