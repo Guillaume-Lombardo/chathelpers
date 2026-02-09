@@ -30,6 +30,7 @@ pip install -e ".[dev]"
 ```bash
 flatten-repo --help
 flatten-repo --version
+flatten-repo sync-pyproject-deps --help
 ```
 
 ### Common examples
@@ -62,6 +63,36 @@ Export Python files without docstrings:
 ```bash
 flatten-repo --repo . --output out.md --strip-docstrings
 ```
+
+Synchronize static dependencies into `pyproject.toml` from `requirements*.txt`:
+
+```bash
+flatten-repo sync-pyproject-deps --root .
+```
+
+Use minimum pins (`>=`) instead of exact pins (`==`) and compact TOML output:
+
+```bash
+flatten-repo sync-pyproject-deps --no-compile-in --pin-strategy minimum --compact-toml
+```
+
+Enable stricter validation and backup before overwrite:
+
+```bash
+flatten-repo sync-pyproject-deps --no-compile-in --validate-pep508 --fail-on-unpinned --backup
+```
+
+Disable fallback reconstruction from `pyproject.toml` when `requirements*` are missing:
+
+```bash
+flatten-repo sync-pyproject-deps --no-compile-in --no-reconstruct
+```
+
+`sync-pyproject-deps` behavior notes:
+
+- If `requirements*.in` are missing but `requirements*.txt` are present, it uses `.txt` as compile fallback inputs.
+- If compile inputs are still incomplete, compile is skipped and it attempts reconstruction from `pyproject.toml` (unless `--no-reconstruct` is used).
+- `requirements-dev.txt` include directives like `-r requirements.txt` are ignored when parsing compiled files.
 
 ## Project Layout
 

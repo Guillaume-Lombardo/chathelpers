@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -62,6 +63,7 @@ from flatten_repo.file_manipulation import (
 )
 from flatten_repo.logging import setup_logging
 from flatten_repo.output_construction import build_markdown, chunk_content
+from flatten_repo.pyproject_sync import main as sync_pyproject_dependencies_main
 from flatten_repo.settings import Settings
 
 if TYPE_CHECKING:
@@ -347,7 +349,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     Returns:
         int: Exit code (0 for success, non-zero for errors).
     """
-    settings = parse_args(argv)
+    argv_list = list(sys.argv[1:] if argv is None else argv)
+    if argv_list and argv_list[0] in {"sync-pyproject-deps", "pyproject-deps"}:
+        return sync_pyproject_dependencies_main(argv_list[1:])
+
+    settings = parse_args(argv_list)
     if settings.log_file:
         setup_logging(settings.log_file)
 

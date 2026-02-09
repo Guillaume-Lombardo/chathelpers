@@ -147,3 +147,18 @@ def test_main_strip_docstrings_in_markdown(tmp_path: Path, mocker: MockerFixture
     content = output.read_text(encoding="utf-8")
     assert "module doc" not in content
     assert "function doc" not in content
+
+
+@pytest.mark.unit
+def test_main_dispatches_sync_pyproject_deps(mocker: MockerFixture) -> None:
+    expected_code = 7
+    sync_mock = mocker.patch.object(
+        cli,
+        "sync_pyproject_dependencies_main",
+        return_value=expected_code,
+    )
+
+    exit_code = cli.main(["sync-pyproject-deps", "--dry-run"])
+
+    assert exit_code == expected_code
+    sync_mock.assert_called_once_with(["--dry-run"])
