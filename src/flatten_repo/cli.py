@@ -41,7 +41,7 @@ Run `fratten-repo --help` for full options. Common examples:
         fratten-repo --all --format jsonl --chunk-chars 32000 --output corpus.jsonl
 
     - Include tests and extra globs, exclude images:
-        fratten-repo --tests --include "**/*.cfg" --exclude "**/*.png" --output out.md
+        fratten-repo --include-tests --include-glob "**/*.cfg" --exclude-glob "**/*.png" --output out.md
     - Log to a file:
         fratten-repo --output out.md --log-file export.log
 """
