@@ -76,6 +76,12 @@ Use minimum pins (`>=`) instead of exact pins (`==`) and compact TOML output:
 flatten-repo sync-pyproject-deps --no-compile-in --pin-strategy minimum --compact-toml
 ```
 
+Enable stricter validation and backup before overwrite:
+
+```bash
+flatten-repo sync-pyproject-deps --no-compile-in --validate-pep508 --fail-on-unpinned --backup
+```
+
 ## Project Layout
 
 ```text

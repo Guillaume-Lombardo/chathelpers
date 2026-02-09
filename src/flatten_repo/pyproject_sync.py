@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import re
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -13,11 +14,12 @@ from subprocess import run  # noqa: S404
 from typing import TYPE_CHECKING, Literal
 
 import tomlkit
+from packaging.requirements import InvalidRequirement, Requirement
 from pydantic import BaseModel, ConfigDict, field_validator
-from tomlkit.items import Array, InlineTable, Table
+from tomlkit.items import Array, Table
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
     from tomlkit.toml_document import TOMLDocument
 
@@ -30,10 +32,25 @@ DEFAULT_GROUP_IN: dict[str, str] = {
 DEFAULT_GROUP_TXT: dict[str, str] = {
     "dev": "requirements-dev.txt",
 }
+GROUP_WHITELIST: frozenset[str] = frozenset(DEFAULT_GROUP_IN)
 
 _EXACT_PIN_PATTERN = re.compile(
     r"^(?P<name>[A-Za-z0-9_.-]+(?:\[[A-Za-z0-9_,.-]+\])?)\s*==\s*(?P<version>[^;\s]+)(?P<marker>\s*;.*)?$",
 )
+
+
+class ResolvedPaths(BaseModel):
+    """Absolute paths derived from CLI configuration."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    pyproject: Path
+    project_root: Path
+    runtime_in: Path
+    runtime_txt: Path
+    lock_txt: Path
+    group_in: dict[str, Path]
+    group_txt: dict[str, Path]
 
 
 class DepsSyncConfig(BaseModel):
@@ -54,6 +71,10 @@ class DepsSyncConfig(BaseModel):
     uv_verbose: bool
     pin_strategy: Literal["exact", "minimum"]
     compact_toml: bool
+    fail_on_unpinned: bool
+    validate_pep508: bool
+    backup: bool
+    strict_group_whitelist: bool
 
     @field_validator("uv_resolution", mode="before")
     @classmethod
@@ -126,6 +147,69 @@ def parse_group_overrides(values: list[str]) -> dict[str, str]:
             raise ValueError(msg)
         out[name] = path
     return out
+
+
+def warn(text: str) -> None:
+    """Write warning text to stderr.
+
+    Args:
+        text (str): Warning text.
+    """
+    sys.stderr.write(f"WARNING: {text}\n")
+
+
+def check_group_whitelist(group_names: Iterable[str], *, strict: bool) -> None:
+    """Validate group names against whitelist.
+
+    Args:
+        group_names (Iterable[str]): Group names to validate.
+        strict (bool): Whether unknown groups should raise.
+
+    Raises:
+        ValueError: If strict mode is enabled and unknown group names are present.
+    """
+    unknown = sorted({name for name in group_names if name not in GROUP_WHITELIST})
+    if not unknown:
+        return
+    message = f"Unknown dependency groups outside whitelist {sorted(GROUP_WHITELIST)}: {unknown}"
+    if strict:
+        raise ValueError(message)
+    warn(message)
+
+
+def resolve_paths(config: DepsSyncConfig) -> ResolvedPaths:
+    """Resolve paths used by the sync operation.
+
+    Args:
+        config (DepsSyncConfig): Parsed runtime configuration.
+
+    Returns:
+        ResolvedPaths: All relevant absolute paths.
+    """
+    pyproject_path = config.pyproject.resolve() if config.pyproject else find_pyproject(config.root)
+    project_root = pyproject_path.parent
+
+    group_in_raw = dict(DEFAULT_GROUP_IN)
+    group_in_raw.update(parse_group_overrides(config.group))
+    check_group_whitelist(
+        group_in_raw.keys(),
+        strict=config.strict_group_whitelist,
+    )
+
+    group_in_paths = {name: to_abs(project_root, path) for name, path in group_in_raw.items()}
+    group_txt_paths = {
+        name: to_abs(project_root, DEFAULT_GROUP_TXT.get(name, f"requirements-{name}.txt"))
+        for name in group_in_paths
+    }
+    return ResolvedPaths(
+        pyproject=pyproject_path,
+        project_root=project_root,
+        runtime_in=to_abs(project_root, config.runtime_in),
+        runtime_txt=to_abs(project_root, config.runtime_txt),
+        lock_txt=to_abs(project_root, config.lock_txt),
+        group_in=group_in_paths,
+        group_txt=group_txt_paths,
+    )
 
 
 def read_requirements_file(path: Path) -> list[str]:
@@ -222,6 +306,167 @@ def uv_compile(
     run(cmd, check=True)  # noqa: S603
 
 
+def compile_inputs(config: DepsSyncConfig, paths: ResolvedPaths) -> None:
+    """Compile requirements inputs into lock and text files.
+
+    Args:
+        config (DepsSyncConfig): Runtime configuration.
+        paths (ResolvedPaths): Resolved paths.
+    """
+    union_in: Path | None = None
+    try:
+        union_in = write_union_in_file(
+            runtime_in=paths.runtime_in,
+            group_in=paths.group_in,
+            directory=paths.project_root,
+        )
+        uv_compile(
+            config=config,
+            input_file=union_in,
+            constraints=None,
+            output_file=paths.lock_txt,
+        )
+        uv_compile(
+            config=config,
+            input_file=paths.runtime_in,
+            constraints=paths.lock_txt,
+            output_file=paths.runtime_txt,
+        )
+        for group_name, in_path in paths.group_in.items():
+            uv_compile(
+                config=config,
+                input_file=in_path,
+                constraints=paths.lock_txt,
+                output_file=paths.group_txt[group_name],
+            )
+    finally:
+        if union_in is not None:
+            with contextlib.suppress(OSError):
+                union_in.unlink(missing_ok=True)
+
+
+def parse_requirement(requirement: str, *, source: str) -> Requirement:
+    """Parse a requirement string and raise a clearer validation error.
+
+    Args:
+        requirement (str): Requirement line.
+        source (str): Source identifier used in error message.
+
+    Raises:
+        ValueError: If requirement is not valid PEP 508.
+
+    Returns:
+        Requirement: Parsed requirement.
+    """
+    try:
+        return Requirement(requirement)
+    except InvalidRequirement as exc:
+        msg = f"Invalid PEP 508 requirement in {source}: {requirement}"
+        raise ValueError(msg) from exc
+
+
+def validate_pep508_lines(items: list[str], *, source: str) -> None:
+    """Validate requirement lines as PEP 508.
+
+    Args:
+        items (list[str]): Requirement lines.
+        source (str): Source identifier used in error messages.
+    """
+    for item in items:
+        parse_requirement(item, source=source)
+
+
+def assert_all_pinned(items: list[str], *, source: str) -> None:
+    """Ensure every requirement is pinned by version or URL.
+
+    Args:
+        items (list[str]): Requirement lines.
+        source (str): Source identifier used in error message.
+
+    Raises:
+        ValueError: If one or more requirements are unpinned.
+    """
+    unpinned: list[str] = []
+    for item in items:
+        req = parse_requirement(item, source=source)
+        if not req.specifier and req.url is None:
+            unpinned.append(item)
+    if unpinned:
+        msg = f"Unpinned dependencies found in {source}: {unpinned}"
+        raise ValueError(msg)
+
+
+def to_minimum_pin(requirement: str) -> str:
+    """Convert ``pkg==X`` into ``pkg>=X`` while preserving markers.
+
+    Args:
+        requirement (str): Requirement specifier.
+
+    Returns:
+        str: Converted requirement.
+    """
+    matched = _EXACT_PIN_PATTERN.match(requirement.strip())
+    if matched is None:
+        return requirement
+    name = matched.group("name")
+    version = matched.group("version")
+    marker = matched.group("marker") or ""
+    return f"{name}>={version}{marker}"
+
+
+def apply_pin_strategy(
+    items: list[str],
+    *,
+    strategy: Literal["exact", "minimum"],
+) -> list[str]:
+    """Apply selected pinning strategy to dependency specifiers.
+
+    Args:
+        items (list[str]): Requirement lines.
+        strategy (Literal["exact", "minimum"]): Pin conversion policy.
+
+    Returns:
+        list[str]: Converted lines.
+    """
+    if strategy == "exact":
+        return items
+    return [to_minimum_pin(item) for item in items]
+
+
+def load_dependencies(
+    config: DepsSyncConfig,
+    paths: ResolvedPaths,
+) -> tuple[list[str], dict[str, list[str]]]:
+    """Load, validate and normalize dependencies from requirements files.
+
+    Args:
+        config (DepsSyncConfig): Runtime configuration.
+        paths (ResolvedPaths): Resolved paths.
+
+    Returns:
+        tuple[list[str], dict[str, list[str]]]: Runtime dependencies and groups.
+    """
+    runtime_raw = read_requirements_file(paths.runtime_txt)
+    groups_raw = {name: read_requirements_file(path) for name, path in paths.group_txt.items()}
+
+    if config.validate_pep508:
+        validate_pep508_lines(runtime_raw, source=paths.runtime_txt.name)
+        for group_name, lines in groups_raw.items():
+            validate_pep508_lines(lines, source=paths.group_txt[group_name].name)
+
+    runtime_deps = apply_pin_strategy(runtime_raw, strategy=config.pin_strategy)
+    groups_deps = {
+        name: apply_pin_strategy(lines, strategy=config.pin_strategy) for name, lines in groups_raw.items()
+    }
+
+    if config.fail_on_unpinned:
+        assert_all_pinned(runtime_deps, source=paths.runtime_txt.name)
+        for group_name, lines in groups_deps.items():
+            assert_all_pinned(lines, source=paths.group_txt[group_name].name)
+
+    return runtime_deps, groups_deps
+
+
 def as_toml_array(items: list[str], *, compact: bool) -> Array:
     """Create TOMLKit array, compact on demand.
 
@@ -263,7 +508,12 @@ def ensure_project_table(doc: TOMLDocument) -> Table:
 
 
 def remove_dynamic_dependencies(project: Table, doc: TOMLDocument) -> None:
-    """Remove dynamic dependency configuration referencing requirements files."""
+    """Remove dynamic dependency configuration referencing requirements files.
+
+    Args:
+        project (Table): ``[project]`` table.
+        doc (TOMLDocument): Parsed pyproject document.
+    """
     if "dynamic" in project:
         dyn_item = project["dynamic"]
         dyn_values = [str(x) for x in dyn_item] if isinstance(dyn_item, Array) else [str(dyn_item)]
@@ -288,43 +538,6 @@ def remove_dynamic_dependencies(project: Table, doc: TOMLDocument) -> None:
         del setuptools["dynamic"]
 
 
-def to_minimum_pin(requirement: str) -> str:
-    """Convert ``pkg==X`` into ``pkg>=X`` while preserving markers.
-
-    Args:
-        requirement (str): Requirement specifier.
-
-    Returns:
-        str: Converted requirement.
-    """
-    matched = _EXACT_PIN_PATTERN.match(requirement.strip())
-    if matched is None:
-        return requirement
-    name = matched.group("name")
-    version = matched.group("version")
-    marker = matched.group("marker") or ""
-    return f"{name}>={version}{marker}"
-
-
-def apply_pin_strategy(
-    items: list[str],
-    *,
-    strategy: Literal["exact", "minimum"],
-) -> list[str]:
-    """Apply selected pinning strategy to dependency specifiers.
-
-    Args:
-        items (list[str]): Requirement lines.
-        strategy (Literal["exact", "minimum"]): Pin conversion policy.
-
-    Returns:
-        list[str]: Converted lines.
-    """
-    if strategy == "exact":
-        return items
-    return [to_minimum_pin(item) for item in items]
-
-
 def compact_toml_text(text: str) -> str:
     """Collapse consecutive blank lines and trim trailing spaces.
 
@@ -344,6 +557,65 @@ def compact_toml_text(text: str) -> str:
         compacted.append(line)
         prev_blank = blank
     return "\n".join(compacted).rstrip() + "\n"
+
+
+def render_updated_pyproject(
+    pyproject_path: Path,
+    *,
+    runtime_deps: list[str],
+    group_deps: dict[str, list[str]],
+    compact_toml: bool,
+) -> tuple[str, str]:
+    """Render updated pyproject content.
+
+    Args:
+        pyproject_path (Path): pyproject path.
+        runtime_deps (list[str]): Runtime dependencies to write.
+        group_deps (dict[str, list[str]]): Dependency groups to write.
+        compact_toml (bool): Whether to compact formatting.
+
+    Returns:
+        tuple[str, str]: Original and rendered file content.
+    """
+    original = pyproject_path.read_text(encoding="utf-8")
+    doc = tomlkit.parse(original)
+    project = ensure_project_table(doc)
+
+    remove_dynamic_dependencies(project, doc)
+    project["dependencies"] = as_toml_array(runtime_deps, compact=compact_toml)
+
+    dependency_groups = tomlkit.table()
+    for group_name, deps in group_deps.items():
+        dependency_groups[group_name] = as_toml_array(deps, compact=compact_toml)
+    doc["dependency-groups"] = dependency_groups
+
+    rendered = tomlkit.dumps(doc)
+    if compact_toml:
+        rendered = compact_toml_text(rendered)
+    return original, rendered
+
+
+def write_updated_pyproject(
+    *,
+    pyproject_path: Path,
+    original: str,
+    rendered: str,
+    create_backup: bool,
+) -> None:
+    """Persist updated pyproject if content has changed.
+
+    Args:
+        pyproject_path (Path): pyproject path.
+        original (str): Previous file content.
+        rendered (str): New file content.
+        create_backup (bool): Whether to write a ``.bak`` backup file.
+    """
+    if rendered == original:
+        return
+    if create_backup:
+        backup_path = pyproject_path.with_suffix(f"{pyproject_path.suffix}.bak")
+        shutil.copy2(pyproject_path, backup_path)
+    pyproject_path.write_text(rendered, encoding="utf-8")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -392,6 +664,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override dependency-group input mapping as NAME=PATH (repeatable).",
     )
     parser.add_argument(
+        "--strict-group-whitelist",
+        action="store_true",
+        help="Fail when a group is outside the internal whitelist.",
+    )
+    parser.add_argument(
         "--no-compile-in",
         dest="compile_in",
         action="store_false",
@@ -430,6 +707,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Use exact pins or convert exact pins to minimum pins (>=).",
     )
     parser.add_argument(
+        "--fail-on-unpinned",
+        action="store_true",
+        help="Fail if at least one dependency is missing a version pin or URL.",
+    )
+    parser.add_argument(
+        "--validate-pep508",
+        action="store_true",
+        help="Validate dependency lines with packaging.Requirement parser.",
+    )
+    parser.add_argument(
+        "--backup",
+        action="store_true",
+        help="Write pyproject.toml.bak before overwriting pyproject.toml.",
+    )
+    parser.add_argument(
         "--compact-toml",
         action="store_true",
         help="Render pyproject.toml in a compact format (fewer newlines).",
@@ -437,7 +729,50 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:  # noqa: PLR0914
+def parse_config(argv: Sequence[str] | None = None) -> DepsSyncConfig:
+    """Parse CLI arguments into configuration object.
+
+    Args:
+        argv (Sequence[str] | None): Optional CLI args.
+
+    Returns:
+        DepsSyncConfig: Parsed config.
+    """
+    args = build_parser().parse_args(argv)
+    return DepsSyncConfig.model_validate(vars(args))
+
+
+def sync_dependencies(config: DepsSyncConfig) -> str:
+    """Run full sync pipeline and return rendered TOML.
+
+    Args:
+        config (DepsSyncConfig): Runtime configuration.
+
+    Returns:
+        str: Rendered ``pyproject.toml`` content.
+    """
+    paths = resolve_paths(config)
+    if config.compile_in:
+        compile_inputs(config, paths)
+    runtime_deps, group_deps = load_dependencies(config, paths)
+    original, rendered = render_updated_pyproject(
+        paths.pyproject,
+        runtime_deps=runtime_deps,
+        group_deps=group_deps,
+        compact_toml=config.compact_toml,
+    )
+    if config.dry_run:
+        return rendered
+    write_updated_pyproject(
+        pyproject_path=paths.pyproject,
+        original=original,
+        rendered=rendered,
+        create_backup=config.backup,
+    )
+    return rendered
+
+
+def main(argv: Sequence[str] | None = None) -> int:
     """Sync dependencies from requirements files into pyproject.toml.
 
     Args:
@@ -446,89 +781,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # noqa: PLR0914
     Returns:
         int: Process exit code.
     """
-    args = build_parser().parse_args(argv)
-    config = DepsSyncConfig.model_validate(vars(args))
-
-    pyproject_path = config.pyproject.resolve() if config.pyproject else find_pyproject(config.root)
-    project_root = pyproject_path.parent
-
-    group_in = dict(DEFAULT_GROUP_IN)
-    group_in.update(parse_group_overrides(config.group))
-
-    runtime_in = to_abs(project_root, config.runtime_in)
-    runtime_txt = to_abs(project_root, config.runtime_txt)
-    lock_txt = to_abs(project_root, config.lock_txt)
-
-    group_in_paths = {name: to_abs(project_root, path) for name, path in group_in.items()}
-    group_txt_paths = {
-        name: to_abs(project_root, DEFAULT_GROUP_TXT.get(name, f"requirements-{name}.txt"))
-        for name in group_in_paths
-    }
-
-    if config.compile_in:
-        union_in: Path | None = None
-        try:
-            union_in = write_union_in_file(
-                runtime_in=runtime_in,
-                group_in=group_in_paths,
-                directory=project_root,
-            )
-            uv_compile(
-                config=config,
-                input_file=union_in,
-                constraints=None,
-                output_file=lock_txt,
-            )
-            uv_compile(
-                config=config,
-                input_file=runtime_in,
-                constraints=lock_txt,
-                output_file=runtime_txt,
-            )
-            for group_name, in_path in group_in_paths.items():
-                uv_compile(
-                    config=config,
-                    input_file=in_path,
-                    constraints=lock_txt,
-                    output_file=group_txt_paths[group_name],
-                )
-        finally:
-            if union_in is not None:
-                with contextlib.suppress(OSError):
-                    union_in.unlink(missing_ok=True)
-
-    runtime_deps = apply_pin_strategy(
-        read_requirements_file(runtime_txt),
-        strategy=config.pin_strategy,
-    )
-    groups = {
-        name: apply_pin_strategy(
-            read_requirements_file(path),
-            strategy=config.pin_strategy,
-        )
-        for name, path in group_txt_paths.items()
-    }
-
-    original = pyproject_path.read_text(encoding="utf-8")
-    doc = tomlkit.parse(original)
-    project = ensure_project_table(doc)
-
-    remove_dynamic_dependencies(project, doc)
-    project["dependencies"] = as_toml_array(runtime_deps, compact=config.compact_toml)
-
-    dependency_groups: Table | InlineTable = tomlkit.table()
-    for group_name, deps in groups.items():
-        dependency_groups[group_name] = as_toml_array(deps, compact=config.compact_toml)
-    doc["dependency-groups"] = dependency_groups
-
-    rendered = tomlkit.dumps(doc)
-    if config.compact_toml:
-        rendered = compact_toml_text(rendered)
-
+    config = parse_config(argv)
+    rendered = sync_dependencies(config)
     if config.dry_run:
         sys.stdout.write(rendered)
-        return 0
-
-    if rendered != original:
-        pyproject_path.write_text(rendered, encoding="utf-8")
     return 0
