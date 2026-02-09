@@ -30,6 +30,7 @@ pip install -e ".[dev]"
 ```bash
 flatten-repo --help
 flatten-repo --version
+flatten-repo sync-pyproject-deps --help
 ```
 
 ### Common examples
@@ -61,6 +62,18 @@ Export Python files without docstrings:
 
 ```bash
 flatten-repo --repo . --output out.md --strip-docstrings
+```
+
+Synchronize static dependencies into `pyproject.toml` from `requirements*.txt`:
+
+```bash
+flatten-repo sync-pyproject-deps --root .
+```
+
+Use minimum pins (`>=`) instead of exact pins (`==`) and compact TOML output:
+
+```bash
+flatten-repo sync-pyproject-deps --no-compile-in --pin-strategy minimum --compact-toml
 ```
 
 ## Project Layout

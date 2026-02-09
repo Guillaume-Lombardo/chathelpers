@@ -16,7 +16,7 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "Topic :: Text Processing :: Markup",
 ]
-dependencies = ["pydantic", "pydantic-settings", "pyyaml", "structlog"]
+dependencies = ["pydantic", "pydantic-settings", "pyyaml", "structlog", "tomlkit"]
 
 [dependency-groups]
 dev = [
