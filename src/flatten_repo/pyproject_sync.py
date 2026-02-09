@@ -5,11 +5,10 @@ from __future__ import annotations
 import argparse
 import contextlib
 import re
-import shutil
 import sys
 import tempfile
 from pathlib import Path
-from shutil import which
+from shutil import copy2, which
 from subprocess import run  # noqa: S404
 from typing import TYPE_CHECKING, Literal
 
@@ -831,7 +830,7 @@ def write_updated_pyproject(
         return
     if create_backup:
         backup_path = pyproject_path.with_suffix(f"{pyproject_path.suffix}.bak")
-        shutil.copy2(pyproject_path, backup_path)
+        copy2(pyproject_path, backup_path)
     pyproject_path.write_text(rendered, encoding="utf-8")
 
 
