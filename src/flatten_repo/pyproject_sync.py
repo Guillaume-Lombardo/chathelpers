@@ -75,6 +75,7 @@ class DepsSyncConfig(BaseModel):
     validate_pep508: bool
     backup: bool
     strict_group_whitelist: bool
+    reconstruct: bool
 
     @field_validator("uv_resolution", mode="before")
     @classmethod
@@ -244,6 +245,111 @@ def read_requirements_file(path: Path) -> list[str]:
             raise ValueError(msg)
         out.append(line)
     return out
+
+
+def list_from_toml_item(item: object, *, source: str) -> list[str]:
+    """Convert TOML array-like item into list of strings.
+
+    Args:
+        item (object): TOML item to parse.
+        source (str): Source location for error messages.
+
+    Raises:
+        ValueError: If TOML item is not array-like.
+
+    Returns:
+        list[str]: Parsed dependency strings.
+    """
+    if isinstance(item, Array):
+        return [str(value) for value in item]
+    if isinstance(item, list):
+        return [str(value) for value in item]
+    msg = f"Expected array-like dependencies in {source}, got {type(item).__name__}"
+    raise ValueError(msg)
+
+
+def extract_dependencies_from_pyproject(pyproject_path: Path) -> tuple[list[str], dict[str, list[str]]]:
+    """Extract runtime and group dependencies from pyproject.
+
+    Args:
+        pyproject_path (Path): pyproject path.
+
+    Returns:
+        tuple[list[str], dict[str, list[str]]]: Runtime and group dependencies.
+    """
+    doc = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
+    project = ensure_project_table(doc)
+
+    runtime: list[str] = []
+    dependencies_item = project.get("dependencies")
+    if dependencies_item is not None:
+        runtime = list_from_toml_item(dependencies_item, source="[project].dependencies")
+
+    groups: dict[str, list[str]] = {}
+    dependency_groups = doc.get("dependency-groups")
+    if isinstance(dependency_groups, Table):
+        for group_name, deps in dependency_groups.items():
+            groups[group_name] = list_from_toml_item(
+                deps,
+                source=f"[dependency-groups].{group_name}",
+            )
+
+    optional_dependencies = project.get("optional-dependencies")
+    if isinstance(optional_dependencies, Table):
+        for group_name, deps in optional_dependencies.items():
+            groups.setdefault(
+                group_name,
+                list_from_toml_item(
+                    deps,
+                    source=f"[project.optional-dependencies].{group_name}",
+                ),
+            )
+    return runtime, groups
+
+
+def write_requirements_lines(path: Path, deps: list[str]) -> None:
+    """Write requirements lines to a text file.
+
+    Args:
+        path (Path): Output requirements file.
+        deps (list[str]): Requirement lines.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = "\n".join(deps)
+    if content:
+        content += "\n"
+    path.write_text(content, encoding="utf-8")
+
+
+def reconstruct_missing_requirements_from_pyproject(paths: ResolvedPaths) -> None:
+    """Recreate missing requirements files from pyproject where possible.
+
+    Args:
+        paths (ResolvedPaths): Resolved file paths.
+    """
+    missing_runtime = not paths.runtime_txt.exists()
+    missing_groups = [name for name, path in paths.group_txt.items() if not path.exists()]
+    if not missing_runtime and not missing_groups:
+        return
+
+    runtime_deps, group_deps = extract_dependencies_from_pyproject(paths.pyproject)
+    reconstructed: list[str] = []
+
+    if missing_runtime and runtime_deps:
+        write_requirements_lines(paths.runtime_txt, runtime_deps)
+        reconstructed.append(paths.runtime_txt.name)
+
+    for group_name in missing_groups:
+        deps = group_deps.get(group_name)
+        if deps is None:
+            continue
+        write_requirements_lines(paths.group_txt[group_name], deps)
+        reconstructed.append(paths.group_txt[group_name].name)
+
+    if reconstructed:
+        warn(
+            f"Reconstructed missing requirements files from pyproject.toml: {sorted(reconstructed)}",
+        )
 
 
 def write_union_in_file(
@@ -446,6 +552,9 @@ def load_dependencies(
     Returns:
         tuple[list[str], dict[str, list[str]]]: Runtime dependencies and groups.
     """
+    if config.reconstruct:
+        reconstruct_missing_requirements_from_pyproject(paths)
+
     runtime_raw = read_requirements_file(paths.runtime_txt)
     groups_raw = {name: read_requirements_file(path) for name, path in paths.group_txt.items()}
 
@@ -667,6 +776,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--strict-group-whitelist",
         action="store_true",
         help="Fail when a group is outside the internal whitelist.",
+    )
+    parser.add_argument(
+        "--no-reconstruct",
+        dest="reconstruct",
+        action="store_false",
+        default=True,
+        help="Do not reconstruct missing requirements files from pyproject.toml.",
     )
     parser.add_argument(
         "--no-compile-in",

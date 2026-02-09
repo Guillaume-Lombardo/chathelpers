@@ -192,3 +192,52 @@ def test_main_backup_writes_bak_before_update(tmp_path: Path) -> None:
     backup = tmp_path / "pyproject.toml.bak"
     assert backup.exists()
     assert backup.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.unit
+def test_main_reconstructs_missing_requirements_from_pyproject(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\ndependencies = ["requests==2.32.0"]\n\n'
+        "[dependency-groups]\n"
+        'dev = ["pytest==8.4.1"]\n',
+        encoding="utf-8",
+    )
+
+    exit_code = pyproject_sync.main(
+        [
+            "--pyproject",
+            str(pyproject),
+            "--no-compile-in",
+        ],
+    )
+
+    assert exit_code == 0
+    assert (tmp_path / "requirements.txt").read_text(encoding="utf-8") == "requests==2.32.0\n"
+    assert (tmp_path / "requirements-dev.txt").read_text(encoding="utf-8") == "pytest==8.4.1\n"
+    err = capsys.readouterr().err
+    assert "Reconstructed missing requirements files from pyproject.toml" in err
+
+
+@pytest.mark.unit
+def test_main_no_reconstruct_fails_when_requirements_missing(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\ndependencies = ["requests==2.32.0"]\n\n'
+        "[dependency-groups]\n"
+        'dev = ["pytest==8.4.1"]\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(FileNotFoundError):
+        pyproject_sync.main(
+            [
+                "--pyproject",
+                str(pyproject),
+                "--no-compile-in",
+                "--no-reconstruct",
+            ],
+        )

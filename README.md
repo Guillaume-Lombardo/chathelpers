@@ -82,6 +82,12 @@ Enable stricter validation and backup before overwrite:
 flatten-repo sync-pyproject-deps --no-compile-in --validate-pep508 --fail-on-unpinned --backup
 ```
 
+Disable fallback reconstruction from `pyproject.toml` when `requirements*` are missing:
+
+```bash
+flatten-repo sync-pyproject-deps --no-compile-in --no-reconstruct
+```
+
 ## Project Layout
 
 ```text
