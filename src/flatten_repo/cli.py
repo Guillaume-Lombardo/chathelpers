@@ -1,12 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "pydantic",
-#     "pyyaml",
-#     "structlog",
-# ]
-# ///
-#  -*- coding: utf-8 -*-
 """flatten_repo — Prepare the current project directory for an LLM.
 
 Overview
@@ -33,17 +24,17 @@ Python ≥ 3.13. Minimal dependency: `pyyaml` (for pre-commit parsing).
 
 Usage
 -----
-Run `fratten-repo --help` for full options. Common examples:
+Run `flatten-repo --help` for full options. Common examples:
     - Markdown (src + key files):
-        fratten-repo --output repo_for_llm.md
+        flatten-repo --output repo_for_llm.md
 
     - Full project as JSONL (32k char chunks):
-        fratten-repo --all --format jsonl --chunk-chars 32000 --output corpus.jsonl
+        flatten-repo --all --format jsonl --chunk-chars 32000 --output corpus.jsonl
 
     - Include tests and extra globs, exclude images:
-        fratten-repo --include-tests --include-glob "**/*.cfg" --exclude-glob "**/*.png" --output out.md
+        flatten-repo --include-tests --include-glob "**/*.cfg" --exclude-glob "**/*.png" --output out.md
     - Log to a file:
-        fratten-repo --output out.md --log-file export.log
+        flatten-repo --output out.md --log-file export.log
 """
 
 from __future__ import annotations
@@ -54,7 +45,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from flatten_repo import logger
+from flatten_repo import __version__, logger
 from flatten_repo.config import (
     DROP_PRESETS,
     KEY_FILES_PRIORITY,
@@ -146,6 +137,11 @@ def parse_args(argv: Sequence[str] | None = None) -> Settings:
     """
     p = argparse.ArgumentParser(
         description="Export a project for LLM consumption (md/jsonl).",
+    )
+    p.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     p.add_argument("--repo", type=str, default=".", help="Repository root.")
     p.add_argument(

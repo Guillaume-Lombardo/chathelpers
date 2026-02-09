@@ -1,70 +1,101 @@
 [project]
-    name = "flatten-repo"
-    version = "0.1.0"
-    description = "Export a repository into LLM-friendly Markdown or JSONL."
-    readme = "README.md"
-    requires-python = ">=3.13"
-    dependencies = ["pydantic", "pyyaml", "structlog", "pydantic-settings"]
-
-
+name = "flatten-repo"
+version = "0.2.0"
+description = "Export a repository into LLM-friendly Markdown or JSONL."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { file = "LICENSE" }
+keywords = ["llm", "rag", "markdown", "jsonl", "repo", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Text Processing :: Markup",
+]
+dependencies = ["pydantic", "pydantic-settings", "pyyaml", "structlog"]
 
 [dependency-groups]
-    dev = [
-        "detect-secrets",
-        "pre-commit",
-        "pytest",
-        "pytest-cov",
-        "pytest-mock",
-        "pytest-sugar",
-        "ruff",
-        "ty",
-    ]
+dev = [
+    "build",
+    "detect-secrets",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-sugar",
+    "ruff",
+    "twine",
+    "ty",
+]
 
-    [project.scripts]
-        flatten-repo = "flatten_repo.cli:main"
+[project.optional-dependencies]
+dev = [
+    "build",
+    "detect-secrets",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-sugar",
+    "ruff",
+    "twine",
+    "ty",
+]
+
+[project.scripts]
+flatten-repo = "flatten_repo.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Guillaume-Lombardo/chathelpers"
+Repository = "https://github.com/Guillaume-Lombardo/chathelpers"
+Issues = "https://github.com/Guillaume-Lombardo/chathelpers/issues"
 
 [build-system]
-    requires = ["hatchling"]
-    build-backend = "hatchling.build"
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/flatten_repo"]
 
 [tool.hatch.build.targets.sdist]
-packages = ["src/flatten_repo"]
+include = ["src/flatten_repo", "README.md", "LICENSE", "pyproject.toml"]
 
 [tool.pytest.ini_options]
-    minversion = "6.0"
-    testpaths = ["tests"]
-    addopts = "-ra -q -m unit --strict-markers --cov=flatten_repo --cov-report=term-missing:skip-covered --cov-report=html"
-    pythonpath = ["src"]
-    markers = [
-        "end2end: end-to-end tests",
-        "integration: integration tests",
-        "unit: fast unit tests",
-    ]
+minversion = "6.0"
+testpaths = ["tests"]
+addopts = "-ra -q -m unit --strict-markers --cov=flatten_repo --cov-report=term-missing:skip-covered --cov-report=html"
+pythonpath = ["src"]
+markers = [
+    "end2end: end-to-end tests",
+    "integration: integration tests",
+    "unit: fast unit tests",
+]
 
 [tool.coverage.run]
-    branch = true
-    source = ["src/flatten_repo"]
-    omit = ["*/tests/*"]
+branch = true
+source = ["src/flatten_repo"]
+omit = ["*/tests/*"]
 
 [tool.coverage.report]
-    exclude_lines = [
-        "def __repr__",
-        "if 0:",
-        "if __name__ .__main__.:",
-        "if self.debug:",
-        "if settings.DEBUG",
-        "pragma: no cover",
-        "raise AssertionError",
-        "raise NotImplementedError",
-    ]
-    show_missing = true
-    skip_covered = true
-    precision = 2
-    fail_under = 30
+exclude_lines = [
+    "def __repr__",
+    "if 0:",
+    "if __name__ .__main__.:",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "pragma: no cover",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+show_missing = true
+skip_covered = true
+precision = 2
+fail_under = 30
 
 [tool.coverage.html]
-    directory = "htmlcov"
-    title = "Flatten Repo Test Coverage"
+directory = "htmlcov"
+title = "Flatten Repo Test Coverage"
