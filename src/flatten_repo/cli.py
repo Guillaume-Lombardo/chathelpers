@@ -33,17 +33,17 @@ Python ≥ 3.13. Minimal dependency: `pyyaml` (for pre-commit parsing).
 
 Usage
 -----
-Run `python -m flatten_repo.cli --help` for full options. Common examples:
+Run `fratten-repo --help` for full options. Common examples:
     - Markdown (src + key files):
-        uv run python -m flatten_repo.cli --output repo_for_llm.md
+        fratten-repo --output repo_for_llm.md
 
     - Full project as JSONL (32k char chunks):
-        uv run python -m flatten_repo.cli --all --format jsonl --chunk-chars 32000 --output corpus.jsonl
+        fratten-repo --all --format jsonl --chunk-chars 32000 --output corpus.jsonl
 
     - Include tests and extra globs, exclude images:
-        uv run python -m flatten_repo.cli --tests --include "**/*.cfg" --exclude "**/*.png" --output out.md
+        fratten-repo --include-tests --include-glob "**/*.cfg" --exclude-glob "**/*.png" --output out.md
     - Log to a file:
-        uv run python -m flatten_repo.cli --output out.md --log-file export.log
+        fratten-repo --output out.md --log-file export.log
 """
 
 from __future__ import annotations
@@ -111,6 +111,7 @@ def build_jsonl(
             text_tail_lines=settings.text_tail_lines,
             md_max_lines=settings.md_max_lines,
             pem_mode=settings.pem,
+            strip_docstrings=settings.strip_docstrings,
         )
         if not is_text and not settings.include_binary_meta:
             continue
@@ -172,7 +173,7 @@ def parse_args(argv: Sequence[str] | None = None) -> Settings:
     scope.add_argument(
         "--src-only",
         action="store_true",
-        help="Export src/ + key files (default).",
+        help="Export only src/ files (exclude key files).",
     )
     scope.add_argument(
         "--tests-only",
@@ -214,11 +215,12 @@ def parse_args(argv: Sequence[str] | None = None) -> Settings:
         default=[],
         help="Exclude path prefix (repeatable).",
     )
+    drop_options = ", ".join(sorted(DROP_PRESETS))
     p.add_argument(
         "--drop",
         type=str,
         default="",
-        help="Comma list: api,front,data,docs,tests.",
+        help=f"Comma list of drop presets: {drop_options}.",
     )
 
     p.add_argument(
@@ -262,6 +264,11 @@ def parse_args(argv: Sequence[str] | None = None) -> Settings:
         "--include-binary-meta",
         action="store_true",
         help="Include binary stubs in jsonl.",
+    )
+    p.add_argument(
+        "--strip-docstrings",
+        action="store_true",
+        help="Remove Python docstrings from exported content.",
     )
     p.add_argument(
         "--no-sha",
@@ -310,7 +317,7 @@ def select_scope(
     include_tests = bool(settings.include_tests)
     base: list[Path] = []
     for f, r in rels:
-        if r.startswith("src/") or is_key(r):
+        if r.startswith("src/") or (not settings.src_only and is_key(r)):
             base.append(f)
         if include_tests and r.startswith("tests/"):
             base.append(f)
@@ -378,6 +385,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         selected,
         repo,
         no_sha=bool(settings.no_sha),
+        max_file_size=settings.max_bytes,
     )
 
     out_path = Path(settings.output)

@@ -14,7 +14,6 @@ import yaml
 
 from flatten_repo.config import (
     DEFAULT_EXCLUDES,
-    EXT2LANG,
     KEY_FILES_PRIORITY,
     FileRecord,
     register_file_processor,
@@ -23,9 +22,7 @@ from flatten_repo.exceptions import NotAGitRepositoryError, NotAnInitFileError
 from flatten_repo.logging import logger
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
-
-    FileProcessorFn = Callable[[Path], str]
+    from collections.abc import Sequence
 
 
 def relpath(path: Path, root: Path) -> str:
@@ -43,54 +40,6 @@ def relpath(path: Path, root: Path) -> str:
         return str(path.relative_to(root)).replace("\\", "/")
     except Exception:
         return str(path)
-
-
-def file_language(path: Path) -> str:
-    """Heuristically determine a file's language for syntax highlighting.
-
-    - Uses file extension and name patterns.
-    - Returns a string like "python", "markdown", or "" for unknown.
-
-    This is used to select syntax highlighting in markdown export, and can be
-    extended with custom processors for specific files.
-
-    Args:
-        path (Path): the file path to analyze
-
-    Returns:
-        str: a language string for syntax highlighting, or "" if unknown
-    """
-    name = path.name.lower()
-    if name == "dockerfile":
-        return "dockerfile"
-    if name == "makefile":
-        return "makefile"
-    return EXT2LANG.get(path.suffix.lower(), "")
-
-
-def is_probably_text(path: Path) -> bool:
-    """Check if a file is probably text.
-
-    Heuristically determine whether a file is text by trying to decode
-    the first 4 KiB as UTF-8. Returns False on any failure.
-
-    Args:
-        path (Path): the file path to check
-
-    Returns:
-        bool: True if the file is probably text, False otherwise
-    """
-    try:
-        st = path.stat()
-        if not stat.S_ISREG(st.st_mode):
-            return False
-        with path.open("rb") as f:
-            chunk = f.read(4096)
-        chunk.decode("utf-8")
-    except Exception:
-        return False
-    else:
-        return True
 
 
 def sha256_file(path: Path) -> str:
@@ -111,94 +60,6 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def load_git_tracked_files(repo: Path) -> list[Path]:
-    """Use `git ls-files` to retrieve the list of tracked files within `repo`.
-
-    Args:
-        repo (Path): the root of the git repository to query
-
-    Raises:
-        NotAGitRepositoryError: if `.git` is missing or `git` invocation fails.
-
-    Returns:
-        list[Path]: the list of tracked files within the repository
-    """
-    git_dir = repo / ".git"
-    if not git_dir.exists():
-        raise NotAGitRepositoryError(folder=repo)
-    try:
-        out = subprocess.run(
-            ["git", "ls-files"],  # noqa: S607
-            cwd=str(repo),
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-        return [repo / line for line in out.stdout.splitlines() if line.strip()]
-    except Exception as e:
-        logger.warning("git ls-files failed: %s", e)
-        raise
-
-
-def walk_filesystem(repo: Path) -> list[Path]:
-    """Collect files by walking the filesystem under `repo`.
-
-    Recursively walk the filesystem under `repo`, pruning common transient
-    or tool-specific directories defined in `DEFAULT_EXCLUDES`.
-
-    Args:
-        repo (Path): the root directory to walk
-
-    Returns:
-        list[Path]: the list of files found under `repo`, excluding pruned directories
-    """
-    results: list[Path] = []
-    for root, dirs, files in os.walk(repo):
-        dirs[:] = [d for d in dirs if d not in DEFAULT_EXCLUDES]
-        for f in files:
-            p = Path(root) / f
-            if p.is_file():
-                results.append(p)
-    return results
-
-
-def apply_glob_filters(
-    files: Sequence[Path],
-    root: Path,
-    includes: Sequence[str] | None,
-    excludes: Sequence[str] | None,
-) -> list[Path]:
-    """Apply include/exclude globbing to a list of files relative to `root`.
-
-    - If `includes` is provided, a file must match at least one include pattern.
-    - If `excludes` is provided, a matching file is removed.
-    - If neither is provided, `files` is returned as-is.
-
-    Args:
-        files (Sequence[Path]): the list of file paths to filter
-        root (Path): the root path to relativize file paths against for glob matching
-        includes (Sequence[str] | None): glob patterns to include (relative to root)
-        excludes (Sequence[str] | None): glob patterns to exclude (relative to root)
-
-    Returns:
-        list[Path]: the filtered list of file paths
-    """
-    if not includes and not excludes:
-        return list(files)
-
-    out: list[Path] = []
-    for f in files:
-        rp = relpath(f, root)
-        keep = True
-        if includes:
-            keep = any(fnmatch.fnmatch(rp, pat) for pat in includes)
-        if keep and excludes and any(fnmatch.fnmatch(rp, pat) for pat in excludes):
-            keep = False
-        if keep:
-            out.append(f)
-    return out
-
-
 def is_regular_file(path: Path) -> bool:
     """Check if a file is regular.
 
@@ -213,28 +74,6 @@ def is_regular_file(path: Path) -> bool:
         return stat.S_ISREG(st.st_mode)
     except Exception:
         return False
-
-
-def sniff_text_utf8(path: Path, nbytes: int = 4096) -> bool:
-    """Check if path point to a utf-8 encoded text file.
-
-    Args:
-        path (Path): path to test.
-        nbytes (int, optional): number of bytes to read for testing. Defaults to 4096.
-
-    Returns:
-        bool: True if the file is utf-8 encoded text, False otherwise.
-    """
-    try:
-        if not is_regular_file(path):
-            return False
-        with path.open("rb") as f:
-            chunk = f.read(nbytes)
-        chunk.decode("utf-8")
-    except Exception:
-        return False
-    else:
-        return True
 
 
 def git_ls_files(repo: Path) -> list[Path]:
@@ -326,19 +165,17 @@ def get_init_content_if_not_empty(path: Path) -> str:
     try:
         src = path.read_text(encoding="utf-8", errors="ignore")
         tree = ast.parse(src)
-        body = tree.body
-        if not body:
-            return "(Unparsable __init__.py)"
-        if len(body) == 1 and isinstance(body[0], ast.Expr):
-            v = body[0].value
-            is_ok = isinstance(v, ast.Constant) and isinstance(v.value, str)
-
-            return "(empty __init__.py)" if is_ok else "(Unparsable __init__.py)"
-        return src
     except Exception:
         return "(Unparsable __init__.py)"
-    else:
-        return "(Unparsable __init__.py)"
+
+    body = tree.body
+    if not body:
+        return "(empty __init__.py)"
+    if len(body) != 1 or not isinstance(body[0], ast.Expr):
+        return src
+    v = body[0].value
+    is_ok = isinstance(v, ast.Constant) and isinstance(v.value, str)
+    return "(empty __init__.py)" if is_ok else "(Unparsable __init__.py)"
 
 
 def match_any_glob(rel: str, globs: Sequence[str]) -> bool:
@@ -489,6 +326,7 @@ def make_recs(
     repo: Path,
     *,
     no_sha: bool = True,
+    max_file_size: int | None = None,
 ) -> list[FileRecord]:
     """Create a list of FileRecord objects for the given files.
 
@@ -497,6 +335,8 @@ def make_recs(
             create records for (absolute paths)
         repo (Path): the root path to relativize file paths against for the `rel` field
         no_sha (bool, optional): if True, do not compute SHA-256 digests and set `sha256` to an empty string for all files. Defaults to True.
+        max_file_size (int | None, optional): maximum file size in bytes before content is treated as too large.
+            If None, no size cap is applied.
 
     Returns:
         list[FileRecord]: a list of FileRecord objects with metadata for each file
@@ -514,6 +354,7 @@ def make_recs(
                     size=st.st_size,
                     mtime=st.st_mtime,
                     sha256=digest,
+                    max_file_size=max_file_size,
                 ),
             )
         except Exception as e:
@@ -692,12 +533,48 @@ def take_head_tail(lines: list[str], head: int, tail: int) -> str:
     return "\n".join(out)
 
 
-def file_to_markdown_text(
+def strip_python_docstrings(source: str) -> str:
+    """Remove module/class/function docstrings from Python source code.
+
+    If parsing or unparsing fails, the original source is returned unchanged.
+
+    Returns:
+        str: The source code without Python docstrings when possible.
+    """
+    try:
+        tree = ast.parse(source)
+    except Exception:
+        return source
+
+    def remove_docstring(body: list[ast.stmt]) -> None:
+        if not body:
+            return
+        first = body[0]
+        if not isinstance(first, ast.Expr):
+            return
+        value = first.value
+        is_doc = isinstance(value, ast.Constant) and isinstance(value.value, str)
+        if is_doc:
+            body.pop(0)
+
+    remove_docstring(tree.body)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            remove_docstring(node.body)
+
+    try:
+        return ast.unparse(tree)
+    except Exception:
+        return source
+
+
+def file_to_markdown_text(  # noqa: C901, PLR0913
     rec: FileRecord,
     *,
     text_head_lines: int,
     text_tail_lines: int,
     pem_mode: str,
+    strip_docstrings: bool = False,
     md_max_lines: int | None = None,
 ) -> tuple[str, bool]:
     """Convert a file to a markdown-friendly string, with special handling for certain types.
@@ -712,6 +589,7 @@ def file_to_markdown_text(
         text_tail_lines (int): Number of tail lines to include for large text files.
         md_max_lines (int): Maximum lines for markdown files before truncation.
         pem_mode (str): Mode for handling PEM files ('stub' or 'full').
+        strip_docstrings (bool): Whether to remove Python docstrings from rendered content.
 
     Returns:
         tuple[str, bool]: A tuple containing the markdown-friendly string representation of the file
@@ -746,7 +624,10 @@ def file_to_markdown_text(
         lines = read_text_lines(p, max_lines=md_max_lines)
         return ("\n".join(lines), True)
     else:
-        result = (p.read_text(encoding="utf-8", errors="ignore"), True)
+        content = p.read_text(encoding="utf-8", errors="ignore")
+        if strip_docstrings and suf_low == ".py":
+            content = strip_python_docstrings(content)
+        result = (content, True)
     return result
 
 

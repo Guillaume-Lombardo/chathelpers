@@ -17,7 +17,7 @@ class Settings(BaseModel):
     log_file: str = Field(default="", description="Log file path.")
 
     all: bool = Field(default=False, description="Export all files (after filters).")
-    src_only: bool = Field(default=False, description="Export src/ + key files.")
+    src_only: bool = Field(default=False, description="Export only src/ (no key files).")
     tests_only: bool = Field(default=False, description="Export tests/ only.")
 
     include_tests: bool = Field(
@@ -39,10 +39,14 @@ class Settings(BaseModel):
         default_factory=list,
         description="Exclude path prefix.",
     )
-    drop: str = Field(default="", description="Comma list: api,front,data,docs,tests.")
+    drop: str = Field(
+        default="",
+        description="Comma list: api, ci, data, docker, docs, documentation, front, README, tests.",
+    )
 
     max_bytes: int = Field(
         default=500_000,
+        gt=0,
         description="Text files above are truncated/stubbed.",
     )
     text_head_lines: int = Field(
@@ -63,5 +67,9 @@ class Settings(BaseModel):
     include_binary_meta: bool = Field(
         default=False,
         description="Include binary stubs in jsonl.",
+    )
+    strip_docstrings: bool = Field(
+        default=False,
+        description="Remove Python docstrings from exported content.",
     )
     no_sha: bool = Field(default=False, description="Do not compute sha256 digests.")

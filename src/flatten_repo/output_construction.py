@@ -50,6 +50,7 @@ def build_markdown(
 
     rels = [r.rel for r in recs]
     tree_lines = build_tree_lines(repo.name, rels)
+    out.write("## Structure\n")
     out.write("```text\n")
     out.write("\n".join(tree_lines))
     out.write("\n```\n\n")
@@ -57,10 +58,7 @@ def build_markdown(
     ordered = order_recs(recs, tests_first=settings.tests_first, key_first=not settings.no_key_first)
 
     for rec in ordered:
-        header = f"{rec.rel} size={rec.size}"
-        if rec.sha256:
-            header += f" sha256={rec.sha256}"
-        out.write(f"## {header}\n")
+        out.write(f"## {rec.rel}\n")
         lang = rec.language or "text"
         body, _is_text = file_to_markdown_text(
             rec,
@@ -68,6 +66,7 @@ def build_markdown(
             text_tail_lines=settings.text_tail_lines,
             md_max_lines=settings.md_max_lines,
             pem_mode=settings.pem,
+            strip_docstrings=settings.strip_docstrings,
         )
         if settings.compact:
             # More compact: no extra blank line between code blocks
