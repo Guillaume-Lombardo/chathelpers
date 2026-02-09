@@ -1,13 +1,13 @@
 ---
 name: flatten-repo-architecture
-description: Design and maintain the flatten-repo package architecture (src layout, module boundaries, CLI composition, settings and logging integration).
+description: Design and maintain the flatten-repo package architecture (src layout, module boundaries, CLI composition, settings/logging integration, and packaging metadata wiring).
 ---
 
 # Flatten Repo Architecture
 
 ## Scope
 
-Use this skill when changing package structure or responsibilities between modules.
+Use this skill when changing package structure, responsibilities between modules, CLI entry points, or release-related metadata wiring.
 
 ## Rules
 
@@ -22,9 +22,12 @@ Use this skill when changing package structure or responsibilities between modul
 3. Avoid importing heavy runtime logic in `__init__.py`.
 4. Keep CLI entry point at `flatten_repo.cli:main`.
 5. Preserve `src/` packaging and wheel/sdist config in `pyproject.toml`.
+6. Keep package version consistent between `pyproject.toml` and `src/flatten_repo/__init__.py`.
+7. Keep `project.urls`, classifiers, and script metadata current for PyPI consumers.
 
 ## Validation
 
 Run:
 - `uv run pytest -m unit`
 - `uv run python -m flatten_repo.cli --help`
+- `uv run python -m flatten_repo.cli --version`

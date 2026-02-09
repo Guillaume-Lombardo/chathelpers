@@ -19,7 +19,7 @@ This repository uses local skills stored under `skills/*/SKILL.md`.
 #### Quality and tooling
 - `flatten-repo-quality`
   - File: `skills/flatten-repo-quality/SKILL.md`
-  - Use for: pre-commit, Ruff, detect-secrets, `ty`, coverage gates.
+  - Use for: pre-commit, Ruff, detect-secrets, `ty`, coverage gates, packaging/release checks (build + twine).
 
 #### Legacy umbrella skill
 - `flatten-repo`
@@ -31,3 +31,4 @@ This repository uses local skills stored under `skills/*/SKILL.md`.
 - If the request clearly targets one usage area, use the dedicated skill above.
 - If the request spans multiple areas, combine the minimum required dedicated skills.
 - Use the umbrella `flatten-repo` skill only for cross-cutting tasks or repository onboarding.
+- For PyPI publication readiness, combine at least `flatten-repo-quality` (validation/build) and `flatten-repo-architecture` (metadata/entry points/version wiring) as needed.
