@@ -219,6 +219,10 @@ def read_requirements_file(path: Path) -> list[str]:
     Args:
         path (Path): Requirements file to read.
 
+    Notes:
+        Include/constraint directives (``-r``, ``--requirement``, ``-c``,
+        ``--constraint``) are ignored when reading compiled ``requirements*.txt`` files.
+
     Raises:
         FileNotFoundError: If ``path`` does not exist.
         ValueError: If unsupported pip directives/options are present.
@@ -233,9 +237,9 @@ def read_requirements_file(path: Path) -> list[str]:
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        if line.startswith(
-            ("-r ", "--requirement", "-c ", "--constraint", "-e ", "--editable"),
-        ):
+        if line.startswith(("-r ", "--requirement", "-c ", "--constraint")):
+            continue
+        if line.startswith(("-e ", "--editable")):
             msg = f"Unsupported directive in {path.name}: {line}"
             raise ValueError(msg)
         if line.startswith(
@@ -449,6 +453,19 @@ def compile_inputs(config: DepsSyncConfig, paths: ResolvedPaths) -> None:
         if union_in is not None:
             with contextlib.suppress(OSError):
                 union_in.unlink(missing_ok=True)
+
+
+def missing_compile_inputs(paths: ResolvedPaths) -> list[Path]:
+    """Return missing `.in` files required for compilation.
+
+    Args:
+        paths (ResolvedPaths): Resolved paths.
+
+    Returns:
+        list[Path]: Missing compile input files.
+    """
+    expected = [paths.runtime_in, *paths.group_in.values()]
+    return [path for path in expected if not path.exists()]
 
 
 def parse_requirement(requirement: str, *, source: str) -> Requirement:
@@ -869,7 +886,14 @@ def sync_dependencies(config: DepsSyncConfig) -> str:
     """
     paths = resolve_paths(config)
     if config.compile_in:
-        compile_inputs(config, paths)
+        missing_inputs = missing_compile_inputs(paths)
+        if missing_inputs:
+            missing_names = sorted(path.name for path in missing_inputs)
+            warn(
+                f"Skipping compile phase because .in files are missing: {missing_names}",
+            )
+        else:
+            compile_inputs(config, paths)
     runtime_deps, group_deps = load_dependencies(config, paths)
     original, rendered = render_updated_pyproject(
         paths.pyproject,

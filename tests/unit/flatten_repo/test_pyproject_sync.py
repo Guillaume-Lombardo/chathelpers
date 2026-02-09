@@ -241,3 +241,31 @@ def test_main_no_reconstruct_fails_when_requirements_missing(tmp_path: Path) -> 
                 "--no-reconstruct",
             ],
         )
+
+
+@pytest.mark.unit
+def test_main_missing_in_files_skips_compile_and_reconstructs(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\ndependencies = ["requests==2.32.0"]\n\n'
+        "[dependency-groups]\n"
+        'dev = ["pytest==8.4.1"]\n',
+        encoding="utf-8",
+    )
+
+    exit_code = pyproject_sync.main(
+        [
+            "--pyproject",
+            str(pyproject),
+            "--dry-run",
+        ],
+    )
+
+    assert exit_code == 0
+    err = capsys.readouterr().err
+    assert "Skipping compile phase because .in files are missing" in err
+    assert "requirements.in" in err
+    assert "Reconstructed missing requirements files from pyproject.toml" in err
