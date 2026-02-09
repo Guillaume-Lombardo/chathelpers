@@ -25,6 +25,7 @@ Use this skill for pytest organization, markers, defaults, and test quality.
 6. Prefer function-based tests over class/object-based tests.
 7. Keep imports at the top of test files, never inside test functions.
 8. For mocking, use `pytest_mock.MockerFixture` and the `mocker` fixture instead of `unittest.mock`.
+9. For CLI changes, include tests for both behavior and UX flags (`--help`, `--version` when relevant).
 
 ## Validation
 

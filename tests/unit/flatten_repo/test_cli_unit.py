@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from flatten_repo import cli
+from flatten_repo import __version__, cli
 from flatten_repo.settings import Settings
 
 if TYPE_CHECKING:
@@ -33,6 +33,16 @@ def test_parse_args_parses_scope_and_limits() -> None:
     assert settings.max_bytes == max_bytes
     assert settings.drop == "tests,docs"
     assert settings.strip_docstrings is True
+
+
+@pytest.mark.unit
+def test_parse_args_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc_info:
+        cli.parse_args(["--version"])
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert __version__ in captured.out
 
 
 @pytest.mark.unit

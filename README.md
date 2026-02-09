@@ -13,22 +13,23 @@ It prefers `git ls-files` to respect Git tracking, with filesystem fallback when
 
 ## Installation
 
-### Runtime deps
+From PyPI:
 
 ```bash
-pip install -r requirements.txt
+pip install flatten-repo
 ```
 
-### Dev deps
+From source (editable):
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 ```
 
 ## CLI Usage
 
 ```bash
 flatten-repo --help
+flatten-repo --version
 ```
 
 ### Common examples
@@ -85,6 +86,7 @@ Run checks from the local virtualenv:
 
 ```bash
 ./.venv/bin/ruff check .
+./.venv/bin/ruff format --check .
 ./.venv/bin/ty check src/ tests/
 ./.venv/bin/pytest
 ./.venv/bin/pytest -m integration
@@ -111,6 +113,37 @@ Pre-commit hooks are configured in `.pre-commit-config.yaml`.
 
 - Coverage gate is configured in `pyproject.toml` (`fail_under = 30`).
 - Unit tests remain the default pytest selection via marker configuration.
+
+## Publish To PyPI
+
+Release checklist:
+
+```bash
+# 1) Update version in pyproject.toml + src/flatten_repo/__init__.py
+./.venv/bin/ruff check .
+./.venv/bin/pytest
+
+# 2) Build artifacts
+./.venv/bin/python -m build
+
+# 3) Validate metadata and long description
+./.venv/bin/python -m twine check dist/*
+```
+
+Dry-run on TestPyPI first:
+
+```bash
+./.venv/bin/python -m twine upload --repository testpypi dist/*
+python -m pip install --index-url https://test.pypi.org/simple/ flatten-repo
+```
+
+Publish production release:
+
+```bash
+./.venv/bin/python -m twine upload dist/*
+```
+
+See `RELEASING.md` for full release process and options (API token or Trusted Publishing via GitHub Actions).
 
 ## License
 
