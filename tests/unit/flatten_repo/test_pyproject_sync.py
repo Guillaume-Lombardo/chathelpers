@@ -266,9 +266,39 @@ def test_main_missing_in_files_skips_compile_and_reconstructs(
 
     assert exit_code == 0
     err = capsys.readouterr().err
-    assert "Skipping compile phase because .in files are missing" in err
+    assert "Skipping compile phase because required compile inputs are missing" in err
     assert "requirements.in" in err
     assert "Reconstructed missing requirements files from pyproject.toml" in err
+
+
+@pytest.mark.unit
+def test_main_missing_in_files_uses_txt_as_compile_fallback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "requirements.txt").write_text("pydantic\n", encoding="utf-8")
+    (tmp_path / "requirements-dev.txt").write_text("-r requirements.txt\npytest\n", encoding="utf-8")
+
+    monkeypatch.setattr(pyproject_sync, "uv_compile", lambda **_: None)
+
+    exit_code = pyproject_sync.main(
+        [
+            "--pyproject",
+            str(pyproject),
+            "--dry-run",
+        ],
+    )
+
+    assert exit_code == 0
+    err = capsys.readouterr().err
+    assert "Using requirements*.txt fallback as compile inputs" in err
+    assert "Skipping compile phase because required compile inputs are missing" not in err
 
 
 @pytest.mark.unit

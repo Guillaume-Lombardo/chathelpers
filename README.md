@@ -88,7 +88,11 @@ Disable fallback reconstruction from `pyproject.toml` when `requirements*` are m
 flatten-repo sync-pyproject-deps --no-compile-in --no-reconstruct
 ```
 
-If `requirements*.in` are missing, compile is skipped and the tool attempts reconstruction from `pyproject.toml` before failing.
+`sync-pyproject-deps` behavior notes:
+
+- If `requirements*.in` are missing but `requirements*.txt` are present, it uses `.txt` as compile fallback inputs.
+- If compile inputs are still incomplete, compile is skipped and it attempts reconstruction from `pyproject.toml` (unless `--no-reconstruct` is used).
+- `requirements-dev.txt` include directives like `-r requirements.txt` are ignored when parsing compiled files.
 
 ## Project Layout
 

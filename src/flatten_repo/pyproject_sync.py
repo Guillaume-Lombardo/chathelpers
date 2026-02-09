@@ -54,6 +54,18 @@ class ResolvedPaths(BaseModel):
     group_txt: dict[str, Path]
 
 
+class CompileSources(BaseModel):
+    """Input files used for requirements compilation."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    runtime: Path | None
+    groups: dict[str, Path]
+    temporary: tuple[Path, ...]
+    missing: tuple[str, ...]
+    fallbacks: tuple[str, ...]
+
+
 class DepsSyncConfig(BaseModel):
     """Configuration parameters parsed from CLI arguments."""
 
@@ -382,6 +394,86 @@ def write_union_in_file(
     return out
 
 
+def write_temp_in_from_requirements(
+    *,
+    source_path: Path,
+    directory: Path,
+    prefix: str,
+) -> Path:
+    """Create temporary `.in` file from requirements text.
+
+    Args:
+        source_path (Path): Source requirements file.
+        directory (Path): Output directory.
+        prefix (str): Temporary filename prefix.
+
+    Returns:
+        Path: Temporary `.in` file path.
+    """
+    requirements = read_requirements_file(source_path)
+    _, tmp = tempfile.mkstemp(prefix=prefix, suffix=".in", dir=str(directory))
+    out = Path(tmp)
+    content = "\n".join(requirements)
+    if content:
+        content += "\n"
+    out.write_text(content, encoding="utf-8")
+    return out
+
+
+def resolve_compile_sources(paths: ResolvedPaths) -> CompileSources:
+    """Resolve compile sources, using `requirements*.txt` as fallback.
+
+    Args:
+        paths (ResolvedPaths): Resolved repository paths.
+
+    Returns:
+        CompileSources: Compile inputs and metadata.
+    """
+    temporary: list[Path] = []
+    missing: list[str] = []
+    fallbacks: list[str] = []
+
+    if paths.runtime_in.exists():
+        runtime_source: Path | None = paths.runtime_in
+    elif paths.runtime_txt.exists():
+        runtime_source = write_temp_in_from_requirements(
+            source_path=paths.runtime_txt,
+            directory=paths.project_root,
+            prefix="requirements-runtime-fallback.",
+        )
+        temporary.append(runtime_source)
+        fallbacks.append(f"{paths.runtime_in.name}<-{paths.runtime_txt.name}")
+    else:
+        runtime_source = None
+        missing.append(paths.runtime_in.name)
+
+    group_sources: dict[str, Path] = {}
+    for group_name, in_path in paths.group_in.items():
+        if in_path.exists():
+            group_sources[group_name] = in_path
+            continue
+        txt_path = paths.group_txt[group_name]
+        if txt_path.exists():
+            source = write_temp_in_from_requirements(
+                source_path=txt_path,
+                directory=paths.project_root,
+                prefix=f"requirements-{group_name}-fallback.",
+            )
+            group_sources[group_name] = source
+            temporary.append(source)
+            fallbacks.append(f"{in_path.name}<-{txt_path.name}")
+            continue
+        missing.append(in_path.name)
+
+    return CompileSources(
+        runtime=runtime_source,
+        groups=group_sources,
+        temporary=tuple(temporary),
+        missing=tuple(sorted(missing)),
+        fallbacks=tuple(sorted(fallbacks)),
+    )
+
+
 def uv_compile(
     *,
     config: DepsSyncConfig,
@@ -417,18 +509,26 @@ def uv_compile(
     run(cmd, check=True)  # noqa: S603
 
 
-def compile_inputs(config: DepsSyncConfig, paths: ResolvedPaths) -> None:
+def compile_inputs(
+    config: DepsSyncConfig,
+    paths: ResolvedPaths,
+    *,
+    runtime_source: Path,
+    group_sources: dict[str, Path],
+) -> None:
     """Compile requirements inputs into lock and text files.
 
     Args:
         config (DepsSyncConfig): Runtime configuration.
         paths (ResolvedPaths): Resolved paths.
+        runtime_source (Path): Runtime compile input file.
+        group_sources (dict[str, Path]): Group compile input files.
     """
     union_in: Path | None = None
     try:
         union_in = write_union_in_file(
-            runtime_in=paths.runtime_in,
-            group_in=paths.group_in,
+            runtime_in=runtime_source,
+            group_in=group_sources,
             directory=paths.project_root,
         )
         uv_compile(
@@ -439,11 +539,11 @@ def compile_inputs(config: DepsSyncConfig, paths: ResolvedPaths) -> None:
         )
         uv_compile(
             config=config,
-            input_file=paths.runtime_in,
+            input_file=runtime_source,
             constraints=paths.lock_txt,
             output_file=paths.runtime_txt,
         )
-        for group_name, in_path in paths.group_in.items():
+        for group_name, in_path in group_sources.items():
             uv_compile(
                 config=config,
                 input_file=in_path,
@@ -454,19 +554,6 @@ def compile_inputs(config: DepsSyncConfig, paths: ResolvedPaths) -> None:
         if union_in is not None:
             with contextlib.suppress(OSError):
                 union_in.unlink(missing_ok=True)
-
-
-def missing_compile_inputs(paths: ResolvedPaths) -> list[Path]:
-    """Return missing `.in` files required for compilation.
-
-    Args:
-        paths (ResolvedPaths): Resolved paths.
-
-    Returns:
-        list[Path]: Missing compile input files.
-    """
-    expected = [paths.runtime_in, *paths.group_in.values()]
-    return [path for path in expected if not path.exists()]
 
 
 def parse_requirement(requirement: str, *, source: str) -> Requirement:
@@ -890,14 +977,26 @@ def sync_dependencies(config: DepsSyncConfig) -> str:
     """
     paths = resolve_paths(config)
     if config.compile_in:
-        missing_inputs = missing_compile_inputs(paths)
-        if missing_inputs:
-            missing_names = sorted(path.name for path in missing_inputs)
-            warn(
-                f"Skipping compile phase because .in files are missing: {missing_names}",
-            )
-        else:
-            compile_inputs(config, paths)
+        sources = resolve_compile_sources(paths)
+        try:
+            if sources.fallbacks:
+                warn(f"Using requirements*.txt fallback as compile inputs: {list(sources.fallbacks)}")
+            if sources.missing:
+                warn(
+                    "Skipping compile phase because required compile inputs are missing: "
+                    f"{list(sources.missing)}",
+                )
+            elif sources.runtime is not None:
+                compile_inputs(
+                    config,
+                    paths,
+                    runtime_source=sources.runtime,
+                    group_sources=sources.groups,
+                )
+        finally:
+            for temp_path in sources.temporary:
+                with contextlib.suppress(OSError):
+                    temp_path.unlink(missing_ok=True)
     runtime_deps, group_deps = load_dependencies(config, paths)
     original, rendered = render_updated_pyproject(
         paths.pyproject,
