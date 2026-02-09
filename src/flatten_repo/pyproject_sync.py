@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Literal
 import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
 from pydantic import BaseModel, ConfigDict, field_validator
+from tomlkit.container import OutOfOrderTableProxy
 from tomlkit.items import Array, Table
 
 if TYPE_CHECKING:
@@ -610,7 +611,7 @@ def as_toml_array(items: list[str], *, compact: bool) -> Array:
     return arr
 
 
-def ensure_project_table(doc: TOMLDocument) -> Table:
+def ensure_project_table(doc: TOMLDocument) -> Table | OutOfOrderTableProxy:
     """Return ``[project]`` table from pyproject.
 
     Args:
@@ -621,19 +622,22 @@ def ensure_project_table(doc: TOMLDocument) -> Table:
         TypeError: If ``[project]`` is not a TOML table.
 
     Returns:
-        Table: Project table.
+        Table | OutOfOrderTableProxy: Project table-like mapping.
     """
     if "project" not in doc:
         msg = "Missing [project] table in pyproject.toml"
         raise ValueError(msg)
     project = doc["project"]
-    if not isinstance(project, Table):
+    if not isinstance(project, Table | OutOfOrderTableProxy):
         msg = f"Expected TOML table for [project], got {type(project).__name__}"
         raise TypeError(msg)
     return project
 
 
-def remove_dynamic_dependencies(project: Table, doc: TOMLDocument) -> None:
+def remove_dynamic_dependencies(
+    project: Table | OutOfOrderTableProxy,
+    doc: TOMLDocument,
+) -> None:
     """Remove dynamic dependency configuration referencing requirements files.
 
     Args:

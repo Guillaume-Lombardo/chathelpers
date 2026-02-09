@@ -269,3 +269,28 @@ def test_main_missing_in_files_skips_compile_and_reconstructs(
     assert "Skipping compile phase because .in files are missing" in err
     assert "requirements.in" in err
     assert "Reconstructed missing requirements files from pyproject.toml" in err
+
+
+@pytest.mark.unit
+def test_main_handles_out_of_order_project_table_proxy(tmp_path: Path) -> None:
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\n\n'
+        "[dependency-groups]\n"
+        'dev = ["pytest==8.4.1"]\n\n'
+        "[project.optional-dependencies]\n"
+        'docs = ["mkdocs==1.6.1"]\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "requirements.txt").write_text("pydantic==2.11.7\n", encoding="utf-8")
+    (tmp_path / "requirements-dev.txt").write_text("pytest==8.4.1\n", encoding="utf-8")
+
+    exit_code = pyproject_sync.main(
+        [
+            "--pyproject",
+            str(pyproject),
+            "--no-compile-in",
+        ],
+    )
+
+    assert exit_code == 0
