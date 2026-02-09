@@ -1,6 +1,6 @@
 [project]
 name = "flatten-repo"
-version = "0.2.0"
+version = "0.3.0"
 description = "Export a repository into LLM-friendly Markdown or JSONL."
 readme = "README.md"
 requires-python = ">=3.13"
