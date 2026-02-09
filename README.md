@@ -109,7 +109,7 @@ Pre-commit hooks are configured in `.pre-commit-config.yaml`.
 
 ## Quality Gates
 
-- Coverage gate is active in `/Users/g1lom/Documents/chathelpers/pyproject.toml` (`fail_under = 30`).
+- Coverage gate is configured in `pyproject.toml` (`fail_under = 30`).
 - Unit tests remain the default pytest selection via marker configuration.
 
 ## License
