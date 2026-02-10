@@ -20,7 +20,8 @@ jobs:
       - name: Sync dev deps
         run: uv sync --group dev
       - name: Build
-        run: uv run python -m build
+        run: uv run --with build python -m build
+      - name: Check dist metadata
+        run: uv run --with twine python -m twine check dist/*
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
-
